@@ -1,14 +1,24 @@
-import { useState } from 'react';
+import { Dispatch, SetStateAction, useState } from 'react';
 import { LayoutDashboard, Mail, Calendar, AlertCircle, Workflow, Link2, BarChart3, Settings, Bell, ChevronRight, CheckCircle2, Clock, Zap, TrendingUp, Users, MessageSquare, Play, Pause, Edit, Trash2, Plus, X, Facebook as FacebookIcon, Check, RefreshCw, Download, Filter, Search, ArrowUpRight, Phone, MapPin } from 'lucide-react';
 
 type Screen = 'overview' | 'inbox' | 'calendar' | 'approval' | 'workflows' | 'integrations' | 'reports' | 'settings';
+type AppMode = 'landing' | 'connect-zalo' | 'loading-zalo' | 'connect-kiotviet' | 'loading-kiotviet' | 'connect-calendar' | 'loading-calendar' | 'dashboard';
 type Modal = 'create-workflow' | 'connect-system' | 'edit-conversation' | 'appointment-detail' | 'report-filter' | 'report-export' | 'edit-setting' | 'member-detail' | 'invite-member' | 'integration-settings' | null;
+type WorkflowItem = { id: number, name: string, status: 'active' | 'paused', triggers: number, conversions: number, description?: string };
 
 export default function App() {
+  const [appMode, setAppMode] = useState<AppMode>('landing');
   const [activeScreen, setActiveScreen] = useState<Screen>('overview');
   const [modal, setModal] = useState<Modal>(null);
   const [channelFilter, setChannelFilter] = useState('Tất cả');
   const [toast, setToast] = useState<string | null>(null);
+  const [workflows, setWorkflows] = useState<WorkflowItem[]>([
+    { id: 1, name: 'Tự động đặt lịch tư vấn', status: 'active', triggers: 248, conversions: 38 },
+    { id: 2, name: 'Nhắc lịch trước 2 tiếng', status: 'active', triggers: 38, conversions: 24 },
+    { id: 3, name: 'Theo dõi khách chưa phản hồi', status: 'active', triggers: 156, conversions: 22 },
+    { id: 4, name: 'Chuyển câu hỏi rủi ro cho nhân viên', status: 'active', triggers: 18, conversions: 18 },
+    { id: 5, name: 'Gửi khảo sát sau dịch vụ', status: 'paused', triggers: 0, conversions: 0 }
+  ]);
 
   const notify = (message: string) => {
     setToast(message);
@@ -19,12 +29,135 @@ export default function App() {
     notify(`Đang lọc dữ liệu theo kênh: ${channel}`);
   };
 
+  const startDemo = () => {
+    setToast(null);
+    setAppMode('connect-zalo');
+  };
+
+  const completeConnection = (loadingMode: AppMode, nextMode: AppMode) => {
+    setToast(null);
+    setAppMode(loadingMode);
+    window.setTimeout(() => {
+      setAppMode(nextMode);
+    }, 3000);
+  };
+
+  const enterDashboard = () => {
+    setToast(null);
+    setActiveScreen('overview');
+    setAppMode('dashboard');
+  };
+
+  const createWorkflowFromPrompt = (description: string) => {
+    const prompt = description.trim();
+    const lower = prompt.toLowerCase();
+    const generatedName =
+      lower.includes('nhắc') || lower.includes('remind') ? 'Tự động nhắc và xác nhận lịch hẹn' :
+      lower.includes('follow') || lower.includes('chưa trả lời') || lower.includes('theo dõi') ? 'Tự động theo dõi lead chưa phản hồi' :
+      lower.includes('đơn') || lower.includes('mua') || lower.includes('order') ? 'Tự động tạo đơn từ hội thoại' :
+      lower.includes('giá') || lower.includes('bảng giá') ? 'Tự động tư vấn giá dịch vụ' :
+      lower.includes('rủi ro') || lower.includes('duyệt') ? 'Tự động chuyển ca rủi ro cho nhân viên' :
+      'Quy trình AI tạo từ mô tả tự nhiên';
+
+    setWorkflows((current) => [
+      {
+        id: Math.max(...current.map((workflow) => workflow.id), 0) + 1,
+        name: generatedName,
+        status: 'active',
+        triggers: 0,
+        conversions: 0,
+        description: prompt || 'AI tự phân tích mô tả và tạo workflow phù hợp cho Lumi Clinic.'
+      },
+      ...current
+    ]);
+    notify(`Đã tạo quy trình mới: ${generatedName}`);
+  };
+
+  if (appMode === 'landing') {
+    return (
+      <div className="size-full bg-[#f7faf8] text-slate-950 overflow-auto">
+        <LandingPage
+          onEnterDemo={startDemo}
+          onNotify={notify}
+        />
+        {toast && <Toast message={toast} />}
+      </div>
+    );
+  }
+
+  if (appMode === 'connect-zalo') {
+    return (
+      <OnboardingScreen
+        step={1}
+        totalSteps={3}
+        title="Kết nối Zalo OA"
+        subtitle="Agentify cần đọc tin nhắn từ Zalo OA để hiểu khách hàng và tự xử lý hội thoại."
+        systemName="Zalo OA"
+        systemDescription="Nhận tin nhắn, đồng bộ thông tin khách hàng và gửi xác nhận qua Zalo."
+        permissions={['Đọc hội thoại khách hàng', 'Gửi tin nhắn xác nhận và nhắc lịch', 'Đồng bộ tên và số điện thoại khách hàng']}
+        primaryLabel="Kết nối Zalo OA"
+        onPrimary={() => completeConnection('loading-zalo', 'connect-kiotviet')}
+        onBack={() => setAppMode('landing')}
+      />
+    );
+  }
+
+  if (appMode === 'loading-zalo') {
+    return <ConnectionLoadingScreen title="Đang kết nối Zalo OA" description="Agentify đang xác thực quyền truy cập và đồng bộ hội thoại mẫu." />;
+  }
+
+  if (appMode === 'connect-kiotviet') {
+    return (
+      <OnboardingScreen
+        step={2}
+        totalSteps={3}
+        title="Kết nối KiotViet"
+        subtitle="Kết nối KiotViet để AI có thể kiểm tra dữ liệu và tạo kết quả thật trong workflow."
+        systemName="KiotViet"
+        systemDescription="Đọc danh sách dịch vụ, khách hàng, đơn hàng và cập nhật dữ liệu sau khi AI xử lý."
+        permissions={['Tra cứu dịch vụ và gói bán', 'Tạo khách hàng hoặc đơn hàng mẫu', 'Cập nhật trạng thái xử lý trong hệ thống']}
+        primaryLabel="Kết nối KiotViet"
+        onPrimary={() => completeConnection('loading-kiotviet', 'connect-calendar')}
+        onBack={() => setAppMode('connect-zalo')}
+      />
+    );
+  }
+
+  if (appMode === 'loading-kiotviet') {
+    return <ConnectionLoadingScreen title="Đang kết nối KiotViet" description="Agentify đang kiểm tra API, lấy dữ liệu dịch vụ và chuẩn bị workflow demo." />;
+  }
+
+  if (appMode === 'connect-calendar') {
+    return (
+      <OnboardingScreen
+        step={3}
+        totalSteps={3}
+        title="Kết nối Lịch Google"
+        subtitle="Bước này là tuỳ chọn. Kết nối lịch giúp AI kiểm tra khung giờ trống và tự tạo lịch hẹn."
+        systemName="Lịch Google"
+        systemDescription="Kiểm tra lịch trống, tạo lịch hẹn và đặt nhắc lịch trước giờ khách đến."
+        permissions={['Xem khung giờ trống', 'Tạo lịch hẹn mới', 'Đặt nhắc lịch cho khách và nhân viên']}
+        primaryLabel="Kết nối Lịch Google"
+        secondaryLabel="Bỏ qua bước này"
+        onPrimary={() => completeConnection('loading-calendar', 'dashboard')}
+        onSecondary={enterDashboard}
+        onBack={() => setAppMode('connect-kiotviet')}
+      />
+    );
+  }
+
+  if (appMode === 'loading-calendar') {
+    return <ConnectionLoadingScreen title="Đang kết nối Lịch Google" description="Agentify đang đồng bộ lịch hẹn và cấu hình nhắc lịch tự động." />;
+  }
+
   return (
     <div className="size-full flex bg-slate-50">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex flex-col">
         <div className="p-6 border-b border-slate-200">
-          <h1 className="text-2xl font-bold text-teal-600">Agentify</h1>
+          <button onClick={() => setAppMode('landing')} className="text-2xl font-bold text-teal-600 hover:text-teal-700">
+            Agentify
+          </button>
         </div>
         <nav className="flex-1 p-4">
           <NavItem icon={LayoutDashboard} label="Tổng quan" active={activeScreen === 'overview'} onClick={() => setActiveScreen('overview')} />
@@ -93,7 +226,7 @@ export default function App() {
           {activeScreen === 'inbox' && <InboxScreen onNavigate={setActiveScreen} onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'calendar' && <CalendarScreen onNavigate={setActiveScreen} onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'approval' && <ApprovalScreen onOpenModal={setModal} onNotify={notify} />}
-          {activeScreen === 'workflows' && <WorkflowsScreen onOpenModal={setModal} onNotify={notify} />}
+          {activeScreen === 'workflows' && <WorkflowsScreen workflows={workflows} setWorkflows={setWorkflows} onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'integrations' && <IntegrationsScreen onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'reports' && <ReportsScreen onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'settings' && <SettingsScreen onOpenModal={setModal} onNotify={notify} />}
@@ -101,7 +234,7 @@ export default function App() {
       </div>
 
       {/* Modals */}
-      {modal === 'create-workflow' && <CreateWorkflowModal onClose={() => setModal(null)} onNotify={notify} />}
+      {modal === 'create-workflow' && <CreateWorkflowModal onClose={() => setModal(null)} onCreate={createWorkflowFromPrompt} />}
       {modal === 'connect-system' && <ConnectSystemModal onClose={() => setModal(null)} onNotify={notify} />}
       {modal === 'edit-conversation' && <EditConversationModal onClose={() => setModal(null)} onNotify={notify} />}
       {modal === 'appointment-detail' && <DemoModal title="Chi tiết lịch hẹn" onClose={() => setModal(null)} primary="Gửi nhắc lịch" onPrimary={() => { setModal(null); notify('Đã gửi tin nhắn nhắc lịch cho khách'); }}>
@@ -172,6 +305,388 @@ function NavItem({ icon: Icon, label, active, onClick, badge }: { icon: any, lab
         <span className="px-2 py-0.5 bg-coral-500 text-white text-xs rounded-full">{badge}</span>
       )}
     </button>
+  );
+}
+
+function OnboardingScreen({
+  step,
+  totalSteps,
+  title,
+  subtitle,
+  systemName,
+  systemDescription,
+  permissions,
+  primaryLabel,
+  secondaryLabel,
+  onPrimary,
+  onSecondary,
+  onBack
+}: {
+  step: number,
+  totalSteps: number,
+  title: string,
+  subtitle: string,
+  systemName: string,
+  systemDescription: string,
+  permissions: string[],
+  primaryLabel: string,
+  secondaryLabel?: string,
+  onPrimary: () => void,
+  onSecondary?: () => void,
+  onBack: () => void
+}) {
+  return (
+    <div className="size-full overflow-auto bg-[#f7faf8] text-slate-950">
+      <div className="mx-auto flex min-h-full max-w-6xl flex-col px-6 py-6">
+        <header className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">Agentify</div>
+              <div className="text-xs font-medium text-slate-500">Thiết lập demo sản phẩm</div>
+            </div>
+          </div>
+          <button onClick={onBack} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:text-teal-700">
+            Quay lại
+          </button>
+        </header>
+
+        <main className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.9fr_1.1fr]">
+          <section>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 shadow-sm">
+              Bước {step}/{totalSteps}
+            </div>
+            <h1 className="max-w-xl text-4xl font-bold tracking-tight text-slate-950 lg:text-5xl">{title}</h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">{subtitle}</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <button onClick={onPrimary} className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700">
+                {primaryLabel}
+              </button>
+              {secondaryLabel && onSecondary && (
+                <button onClick={onSecondary} className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-teal-300 hover:text-teal-700">
+                  {secondaryLabel}
+                </button>
+              )}
+            </div>
+            <div className="mt-8 h-2 max-w-md overflow-hidden rounded-full bg-white shadow-inner">
+              <div className="h-full rounded-full bg-teal-600 transition-all" style={{ width: `${(step / totalSteps) * 100}%` }} />
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-teal-900/10">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="mb-6 flex items-start justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-slate-500">Hệ thống cần kết nối</div>
+                  <div className="mt-1 text-3xl font-bold text-slate-950">{systemName}</div>
+                </div>
+                <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">Chưa kết nối</div>
+              </div>
+              <p className="leading-7 text-slate-600">{systemDescription}</p>
+
+              <div className="mt-6 space-y-3">
+                {permissions.map((permission) => (
+                  <div key={permission} className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-4">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-teal-600" />
+                    <span className="text-sm font-medium text-slate-700">{permission}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50 p-4">
+                <div className="mb-2 text-sm font-bold text-teal-900">Sau khi kết nối</div>
+                <div className="text-sm leading-6 text-teal-800">
+                  Agentify sẽ dùng dữ liệu mẫu để mô phỏng luồng khách nhắn tin, AI hiểu ý định, tự xử lý workflow và cập nhật kết quả trong dashboard.
+                </div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function ConnectionLoadingScreen({ title, description }: { title: string, description: string }) {
+  return (
+    <div className="size-full bg-[#f7faf8] text-slate-950">
+      <div className="flex min-h-full items-center justify-center px-6">
+        <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-2xl shadow-teal-900/10">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-teal-50">
+            <RefreshCw className="h-10 w-10 animate-spin text-teal-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-slate-950">{title}</h1>
+          <p className="mt-3 leading-7 text-slate-600">{description}</p>
+          <div className="mt-8 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full w-2/3 animate-pulse rounded-full bg-teal-600" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LandingPage({ onEnterDemo, onNotify }: { onEnterDemo: () => void, onNotify: (message: string) => void }) {
+  return (
+    <div className="min-h-full">
+      <header className="sticky top-0 z-40 border-b border-teal-900/10 bg-[#f7faf8]/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold tracking-tight text-slate-950">Agentify</div>
+              <div className="text-xs font-medium text-slate-500">Nhân viên AI cho social commerce Việt Nam</div>
+            </div>
+          </div>
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
+            <a href="#van-de" className="hover:text-teal-700">Vấn đề</a>
+            <a href="#giai-phap" className="hover:text-teal-700">Giải pháp</a>
+            <a href="#tich-hop" className="hover:text-teal-700">Tích hợp</a>
+            <a href="#thi-truong" className="hover:text-teal-700">Thị trường đầu tiên</a>
+          </nav>
+          <button
+            onClick={onEnterDemo}
+            className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+          >
+            Xem demo
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(13,148,136,0.12),transparent_38%,rgba(251,113,133,0.10))]" />
+          <div className="relative mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.02fr_0.98fr] lg:py-20">
+            <div className="flex flex-col justify-center">
+              <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-medium text-teal-700 shadow-sm">
+                <CheckCircle2 className="h-4 w-4" />
+                Không thay thế hệ thống cũ. Tự động làm việc trên hệ thống đó.
+              </div>
+              <h1 className="max-w-4xl text-5xl font-bold leading-[1.02] tracking-tight text-slate-950 lg:text-6xl">
+                Giữ nguyên hệ thống hiện tại. Thêm một nhân viên AI để tự hoàn thành công việc.
+              </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-650">
+                Agentify giúp doanh nghiệp bán hàng và dịch vụ tại Việt Nam tự động xử lý hội thoại, đặt lịch, tạo đơn và follow-up trên Zalo, Facebook cùng các nền tảng sẵn có như KiotViet, Sapo, Pancake.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={onEnterDemo}
+                  className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700"
+                >
+                  Xem demo sản phẩm
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => onNotify('Đã chuẩn bị bản pitch ngắn cho Agentify')}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:border-teal-300 hover:text-teal-700"
+                >
+                  Tải pitch ngắn
+                  <Download className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-8 grid max-w-2xl grid-cols-3 gap-3">
+                <LandingMiniStat value="300-500" label="tin nhắn mỗi ngày" />
+                <LandingMiniStat value="24/7" label="phản hồi và theo dõi" />
+                <LandingMiniStat value="100%" label="tự động cho workflow đủ điều kiện" />
+              </div>
+            </div>
+
+            <HeroProductMockup onEnterDemo={onEnterDemo} />
+          </div>
+        </section>
+
+        <section id="van-de" className="mx-auto max-w-7xl px-6 py-16">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
+            <div>
+              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-coral-600">Vấn đề</p>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-950">SME đã có phần mềm, nhưng vận hành vẫn phụ thuộc vào con người.</h2>
+              <p className="mt-4 leading-7 text-slate-600">
+                Pancake gom hội thoại, KiotViet và Sapo lưu dữ liệu, lịch quản lý booking. Nhưng nhân viên vẫn phải đọc chat, quyết định bước tiếp theo, check dữ liệu, nhắc khách và theo dõi lại từng lead.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <ProblemCard value="300-500" label="tin nhắn/ngày" desc="Dễ quá tải ở giờ cao điểm và sau giờ làm." />
+              <ProblemCard value="30-50%" label="khách bị bỏ sót" desc="Lead nóng trôi mất vì phản hồi chậm." />
+              <ProblemCard value="8-18M" label="VND/tháng" desc="Chi phí cho một nhân sự chăm sóc khách hàng." />
+            </div>
+          </div>
+        </section>
+
+        <section id="giai-phap" className="border-y border-slate-200 bg-white">
+          <div className="mx-auto max-w-7xl px-6 py-16">
+            <div className="mb-10 max-w-3xl">
+              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-teal-700">Giải pháp</p>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-950">Không chỉ trả lời. Agentify hiểu, gọi công cụ và hoàn thành workflow.</h2>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-3">
+              <SolutionStep number="01" title="Hiểu hội thoại tiếng Việt" desc="Nhận diện intent, trạng thái khách hàng và mức độ rủi ro trong từng cuộc trò chuyện." />
+              <SolutionStep number="02" title="Làm việc trên stack hiện có" desc="Gọi dữ liệu từ Zalo OA, Facebook, KiotViet, Sapo, Pancake hoặc lịch hẹn." />
+              <SolutionStep number="03" title="Chốt kết quả và báo lại" desc="Đặt lịch, tạo đơn, gửi xác nhận, nhắc lịch, follow-up hoặc chuyển cho nhân viên duyệt." />
+            </div>
+            <div className="mt-8 rounded-2xl border border-teal-100 bg-teal-50/60 p-5">
+              <div className="grid items-center gap-3 text-sm font-semibold text-slate-700 md:grid-cols-7">
+                {['Khách hỏi dịch vụ', 'AI tư vấn', 'Kiểm tra lịch', 'Đặt lịch', 'Gửi xác nhận', 'Nhắc lịch', 'Chuyển ca rủi ro'].map((item, index) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs text-teal-700">{index + 1}</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="tich-hop" className="mx-auto max-w-7xl px-6 py-16">
+          <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr]">
+            <div>
+              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-teal-700">Tích hợp</p>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-950">Một lớp AI trung lập, chạy bên trên công cụ doanh nghiệp đang dùng.</h2>
+              <p className="mt-4 leading-7 text-slate-600">
+                Agentify không yêu cầu khách hàng bỏ hệ thống cũ. Sản phẩm được thiết kế để kết nối vào các kênh và phần mềm nội địa, rồi tự thực hiện các tác vụ có ranh giới rõ ràng.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+              {['Zalo OA', 'Facebook', 'KiotViet', 'Sapo', 'Pancake', 'Lịch Google'].map((tool) => (
+                <div key={tool} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-teal-700">
+                    <Link2 className="h-5 w-5" />
+                  </div>
+                  <div className="font-semibold text-slate-950">{tool}</div>
+                  <div className="mt-1 text-sm text-teal-700">Sẵn sàng kết nối</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="thi-truong" className="bg-slate-950 text-white">
+          <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.9fr_1.1fr]">
+            <div>
+              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-teal-300">Thị trường đầu tiên</p>
+              <h2 className="text-3xl font-bold tracking-tight">Beauty, spa, clinic là wedge phù hợp để chứng minh ROI.</h2>
+              <p className="mt-4 leading-7 text-slate-300">
+                Ngành này có inbound lead lớn, workflow đặt lịch rõ, giá trị mỗi booking cao và missed follow-up gây mất doanh thu trực tiếp.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <MetricPill label="Booking rate" value="Tăng tỷ lệ đặt lịch" />
+              <MetricPill label="Show-up rate" value="Giảm no-show" />
+              <MetricPill label="Response time" value="Phản hồi trong vài giây" />
+              <MetricPill label="Lead recovery" value="Theo dõi lại khách chưa chốt" />
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-6 py-16">
+          <div className="rounded-3xl border border-teal-200 bg-white p-8 shadow-xl shadow-teal-900/5 md:p-10">
+            <div className="grid items-center gap-8 lg:grid-cols-[1fr_auto]">
+              <div>
+                <h2 className="text-3xl font-bold tracking-tight text-slate-950">Bắt đầu bằng một workflow hẹp. Tự động hóa trọn vẹn. Mở rộng dần tới vận hành tự động.</h2>
+                <p className="mt-3 text-slate-600">Xem dashboard demo để thấy luồng khách nhắn tin, AI đặt lịch, lịch hẹn được tạo và ca rủi ro được chuyển cho nhân viên duyệt.</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button onClick={onEnterDemo} className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-700">
+                  Xem demo sản phẩm
+                </button>
+                <button onClick={() => onNotify('Đã ghi nhận nhu cầu trao đổi pilot')} className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 hover:border-teal-300 hover:text-teal-700">
+                  Trao đổi pilot
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function LandingMiniStat({ value, label }: { value: string, label: string }) {
+  return (
+    <div className="rounded-xl border border-white bg-white/75 p-4 shadow-sm">
+      <div className="text-2xl font-bold text-slate-950">{value}</div>
+      <div className="mt-1 text-sm leading-5 text-slate-600">{label}</div>
+    </div>
+  );
+}
+
+function HeroProductMockup({ onEnterDemo }: { onEnterDemo: () => void }) {
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-teal-900/12">
+      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <div className="text-sm font-semibold text-slate-500">Trung tâm điều phối</div>
+            <div className="text-xl font-bold text-slate-950">Lumi Clinic</div>
+          </div>
+          <div className="rounded-full bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-700">AI đang hoạt động</div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <MockMetric label="Hội thoại hôm nay" value="248" />
+          <MockMetric label="AI tự xử lý" value="176" accent />
+          <MockMetric label="Lịch hẹn đã tạo" value="38" accent />
+          <MockMetric label="Việc cần duyệt" value="11" warning />
+        </div>
+        <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="font-semibold text-slate-950">Luồng Zalo đang xử lý</div>
+            <MessageSquare className="h-4 w-4 text-teal-600" />
+          </div>
+          <div className="space-y-3 text-sm">
+            <div className="ml-auto max-w-[82%] rounded-2xl bg-blue-600 px-3 py-2 text-white">Da em bị mụn ẩn, bên mình có soi da không ạ?</div>
+            <div className="max-w-[88%] rounded-2xl bg-slate-100 px-3 py-2 text-slate-800">Dạ có ạ. Chiều thứ Sáu còn khung 14:30 và 16:00.</div>
+            <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-teal-800">
+              <div className="font-semibold">Kết quả</div>
+              <div>Đã đặt lịch tư vấn mụn lúc 14:30 thứ Sáu.</div>
+            </div>
+          </div>
+        </div>
+        <button onClick={onEnterDemo} className="mt-4 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+          Mở dashboard demo
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MockMetric({ label, value, accent, warning }: { label: string, value: string, accent?: boolean, warning?: boolean }) {
+  return (
+    <div className="rounded-xl bg-white p-4 shadow-sm">
+      <div className={`text-2xl font-bold ${warning ? 'text-coral-600' : accent ? 'text-teal-600' : 'text-slate-950'}`}>{value}</div>
+      <div className="mt-1 text-xs font-medium text-slate-500">{label}</div>
+    </div>
+  );
+}
+
+function ProblemCard({ value, label, desc }: { value: string, label: string, desc: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="text-4xl font-bold tracking-tight text-slate-950">{value}</div>
+      <div className="mt-2 font-semibold text-slate-800">{label}</div>
+      <p className="mt-3 text-sm leading-6 text-slate-600">{desc}</p>
+    </div>
+  );
+}
+
+function SolutionStep({ number, title, desc }: { number: string, title: string, desc: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
+      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-600 text-sm font-bold text-white">{number}</div>
+      <h3 className="text-xl font-bold text-slate-950">{title}</h3>
+      <p className="mt-3 leading-7 text-slate-600">{desc}</p>
+    </div>
+  );
+}
+
+function MetricPill({ label, value }: { label: string, value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/7 p-5">
+      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">{label}</div>
+      <div className="mt-2 text-xl font-bold">{value}</div>
+    </div>
   );
 }
 
@@ -484,17 +999,9 @@ function CalendarScreen({ onNavigate, onOpenModal, onNotify }: { onNavigate: (sc
   );
 }
 
-function WorkflowsScreen({ onOpenModal, onNotify }: { onOpenModal: (modal: Modal) => void, onNotify: (message: string) => void }) {
-  const [workflows, setWorkflows] = useState([
-    { id: 1, name: 'Tự động đặt lịch tư vấn', status: 'active', triggers: 248, conversions: 38 },
-    { id: 2, name: 'Nhắc lịch trước 2 tiếng', status: 'active', triggers: 38, conversions: 24 },
-    { id: 3, name: 'Theo dõi khách chưa phản hồi', status: 'active', triggers: 156, conversions: 22 },
-    { id: 4, name: 'Chuyển câu hỏi rủi ro cho nhân viên', status: 'active', triggers: 18, conversions: 18 },
-    { id: 5, name: 'Gửi khảo sát sau dịch vụ', status: 'paused', triggers: 0, conversions: 0 }
-  ]);
-
+function WorkflowsScreen({ workflows, setWorkflows, onOpenModal, onNotify }: { workflows: WorkflowItem[], setWorkflows: Dispatch<SetStateAction<WorkflowItem[]>>, onOpenModal: (modal: Modal) => void, onNotify: (message: string) => void }) {
   const toggleWorkflow = (id: number) => {
-    setWorkflows(workflows.map(w =>
+    setWorkflows((current) => current.map(w =>
       w.id === id ? { ...w, status: w.status === 'active' ? 'paused' : 'active' } : w
     ));
     onNotify('Đã cập nhật trạng thái quy trình');
@@ -502,7 +1009,7 @@ function WorkflowsScreen({ onOpenModal, onNotify }: { onOpenModal: (modal: Modal
 
   const removeWorkflow = (id: number) => {
     const workflow = workflows.find((w) => w.id === id);
-    setWorkflows(workflows.filter((w) => w.id !== id));
+    setWorkflows((current) => current.filter((w) => w.id !== id));
     onNotify(`Đã xóa quy trình mẫu${workflow ? `: ${workflow.name}` : ''}`);
   };
 
@@ -537,6 +1044,9 @@ function WorkflowsScreen({ onOpenModal, onNotify }: { onOpenModal: (modal: Modal
                 </button>
                 <div>
                   <h3 className="font-semibold text-slate-900">{workflow.name}</h3>
+                  {workflow.description && (
+                    <p className="mt-1 max-w-xl text-sm text-slate-600">{workflow.description}</p>
+                  )}
                   <span className={`text-sm ${
                     workflow.status === 'active' ? 'text-teal-600' : 'text-slate-500'
                   }`}>
@@ -573,7 +1083,7 @@ function WorkflowsScreen({ onOpenModal, onNotify }: { onOpenModal: (modal: Modal
               <div className="w-full bg-slate-100 rounded-full h-2">
                 <div
                   className="bg-teal-500 h-2 rounded-full"
-                  style={{ width: `${(workflow.conversions / workflow.triggers) * 100}%` }}
+                  style={{ width: `${workflow.triggers > 0 ? (workflow.conversions / workflow.triggers) * 100 : 4}%` }}
                 ></div>
               </div>
             )}
@@ -912,10 +1422,36 @@ function ToggleSetting({ label, description, value, onChange }: any) {
   );
 }
 
-function CreateWorkflowModal({ onClose, onNotify }: { onClose: () => void, onNotify: (message: string) => void }) {
+function CreateWorkflowModal({ onClose, onCreate }: { onClose: () => void, onCreate: (description: string) => void }) {
+  const [description, setDescription] = useState('Khi khách hỏi về liệu trình mụn nhưng chưa đặt lịch, AI hãy tư vấn gói soi da, hỏi thời gian phù hợp, kiểm tra lịch trống và tự đặt lịch nếu khách đồng ý.');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleCreate = () => {
+    setIsGenerating(true);
+    window.setTimeout(() => {
+      onCreate(description);
+      onClose();
+    }, 3000);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-8 max-w-2xl w-full mx-4">
+        {isGenerating ? (
+          <div className="py-12 text-center">
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-teal-50">
+              <RefreshCw className="h-10 w-10 animate-spin text-teal-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-slate-900">AI đang tạo quy trình</h3>
+            <p className="mx-auto mt-3 max-w-md text-slate-600">
+              Agentify đang đọc mô tả, xác định điều kiện kích hoạt, hành động cần làm và guardrail phù hợp cho Lumi Clinic.
+            </p>
+            <div className="mx-auto mt-8 h-2 max-w-sm overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-teal-600" />
+            </div>
+          </div>
+        ) : (
+        <>
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-slate-900">Tạo quy trình mới</h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg">
@@ -924,45 +1460,32 @@ function CreateWorkflowModal({ onClose, onNotify }: { onClose: () => void, onNot
         </div>
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Tên quy trình</label>
-            <input
-              type="text"
-              placeholder="VD: Tự động trả lời câu hỏi về giá"
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">Khi nào kích hoạt?</label>
-            <select className="w-full px-4 py-2 border border-slate-300 rounded-lg">
-              <option>Khi khách hỏi về giá</option>
-              <option>Khi khách muốn đặt lịch</option>
-              <option>Khi khách hỏi về dịch vụ</option>
-              <option>Khi khách khiếu nại</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">AI sẽ làm gì?</label>
+            <label className="block text-sm font-medium text-slate-700 mb-2">Mô tả quy trình bằng tiếng Việt</label>
             <textarea
-              rows={4}
-              placeholder="Mô tả hành động AI sẽ thực hiện..."
+              rows={7}
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Ví dụ: Khi khách hỏi giá peel da nhưng chưa chốt, AI hãy tư vấn gói phù hợp, hỏi lịch rảnh, kiểm tra lịch trống và nhắc lại sau 12 giờ nếu khách chưa trả lời."
               className="w-full px-4 py-2 border border-slate-300 rounded-lg"
             ></textarea>
+            <div className="mt-3 rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-800">
+              Bạn chỉ cần mô tả bằng ngôn ngữ tự nhiên. Agentify sẽ tự suy ra điều kiện kích hoạt, hành động, dữ liệu cần gọi và trường hợp cần nhân viên duyệt.
+            </div>
           </div>
           <div className="flex gap-3 pt-4">
             <button onClick={onClose} className="flex-1 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50">
               Hủy
             </button>
             <button
-              onClick={() => {
-                onNotify('Đã tạo quy trình mẫu mới');
-                onClose();
-              }}
+              onClick={handleCreate}
               className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
             >
-              Tạo quy trình
+              Tạo bằng AI
             </button>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

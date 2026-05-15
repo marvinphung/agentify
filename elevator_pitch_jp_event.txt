@@ -1,0 +1,11 @@
+Kính chào quý đối tác, tôi là đại diện dự án Agentify.
+
+Agentify là một nhân viên AI cho doanh nghiệp bán hàng và dịch vụ tại Việt Nam, giúp tự động xử lý các công việc lặp lại trên Zalo, Facebook và các hệ thống sẵn có như KiotViet, Sapo, Pancake hoặc lịch hẹn. Khác với chatbot chỉ trả lời câu hỏi, Agentify có thể hiểu ý định khách hàng, kiểm tra dữ liệu, đặt lịch, tạo đơn, gửi xác nhận, nhắc lịch và chuyển các trường hợp rủi ro cho nhân viên duyệt.
+
+Vấn đề chúng tôi giải quyết là các SME Việt Nam đã có phần mềm quản lý, nhưng vận hành sales và chăm sóc khách hàng vẫn phụ thuộc nhiều vào con người. Mỗi ngày họ có thể nhận 300-500 tin nhắn, dễ bỏ sót khách ngoài giờ, phản hồi chậm và follow-up không đều.
+
+Hiện team Agentify đang được hậu thuẫn bởi A-Star Group. Chúng tôi đang tập trung vào AI agent, tích hợp API và workflow automation cho social commerce Việt Nam. Giai đoạn đầu, chúng tôi ưu tiên nhóm beauty, spa, clinic với workflow chăm sóc khách hàng, đặt lịch, tạo đơn hàng và theo dõi khách hàng.
+
+Chúng tôi đang tìm kiếm đối tác chiến lược, khách hàng pilot và nguồn vốn seed để hoàn thiện sản phẩm, mở rộng tích hợp với các nền tảng Việt Nam, và xa hơn là hợp tác với đối tác Nhật Bản trong bài toán AI tối ưu sales, marketing và vận hành cho SME.
+
+Một câu ngắn gọn về Agentify là: doanh nghiệp giữ nguyên hệ thống hiện tại, Agentify thêm một nhân viên AI để tự hoàn thành công việc.
