@@ -1,0 +1,52 @@
+# Secrets / local env
+.env
+.env.*
+*.env
+*.local
+*.secret
+*.secrets
+*.pem
+*.key
+*.p12
+*.pfx
+!.env.example
+!frontend/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Backend local runtime
+backend/.venv/
+backend/.env
+backend/.env.*
+backend/.pytest_cache/
+!backend/.env.example
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+.vite/
+frontend/.vite/
+.turbo/
+.cache/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

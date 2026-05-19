@@ -1,0 +1,44 @@
+# Kịch bản thuyết trình Agentify (Thời lượng: 3 - 4 phút)
+# Tổng cộng: 14 Slide
+
+## Slide 1. Hook (15s)
+"Chào mọi người, tôi là Vũ Minh Phùng từ Agentify. Agentify không phải là một phần mềm quản lý bán hàng mới. Các shop hiện nay đã có Pancake để trực chat, KiotViet hay Sapo để quản lý kho. Nhưng vấn đề là: Dù có bao nhiêu phần mềm, con người vẫn phải tự tay làm mọi việc. Agentify ra đời như một lớp 'AI Execution' – chúng tôi không chỉ quản lý, chúng tôi trực tiếp làm việc thay con người trên chính các hệ thống các bạn đang dùng."
+
+## Slide 2. Problem (20s)
+"Vấn đề của SME hiện nay không phải là thiếu công cụ, mà là 'nghẽn' ở khâu thực thi. Mỗi ngày một nhân viên phải xử lý từ 100 đến 300 tin nhắn. Hậu quả là 30-50% yêu cầu bị bỏ lỡ vào giờ cao điểm. Doanh nghiệp tốn từ 8-18 triệu mỗi tháng cho một nhân sự CS, nhưng lỗi con người vẫn xảy ra: quên báo giá, check nhầm tồn kho, hoặc quên nhắc lịch khách hàng. Điểm nghẽn nằm ở execution, không nằm ở dashboard."
+
+## Slide 3. Why Current Tools Are Not Enough (20s)
+"Tại sao các công cụ hiện tại là chưa đủ? Pancake mạnh ở gom inbox, KiotViet/Sapo mạnh ở dữ liệu vận hành, Chatbot thì chỉ trả lời được câu hỏi đơn giản. Nhưng khoảng trống lớn nhất là: Chưa có hệ thống nào tự kết nối toàn bộ ngữ cảnh đó để 'chốt' được việc. Không ai tự động check tồn, tự tạo đơn và tự xác nhận với khách từ đầu đến cuối như một nhân viên thực thụ. Đó là lý do Agentify xuất hiện."
+
+## Slide 4. The Solution - AI Execution Layer (25s)
+"Agentify là lớp thực thi AI chạy trên nền tảng sẵn có. Quy trình cực kỳ mượt mà: Khi khách nhắn tin, AI hiểu ý định (intent), tự động gọi tools để truy xuất dữ liệu thực từ kho, tự thực hiện hành động như tạo đơn hoặc đặt lịch, và cuối cùng là xác nhận kết quả tự nhiên với khách. Chúng tôi không chỉ 'trả lời' chat, chúng tôi 'hoàn thành' trọn vẹn các workflow mà không cần sự can thiệp của con người."
+
+## Slide 5. Market Opportunity (15s)
+"Thị trường này đã hoàn toàn sẵn sàng. Việt Nam có gần 900 nghìn SME, với 68% bán hàng qua Zalo và Facebook. Quan trọng nhất, có ít nhất 200 nghìn doanh nghiệp đã có hạ tầng digital sẵn. Agentify không yêu cầu khách hàng thay đổi hệ thống cũ, chúng tôi chỉ đơn giản là gắn thêm một 'bộ não' vận hành lên trên lớp hạ tầng đó."
+
+## Slide 6. Why Agentify? (20s)
+"Câu hỏi thường gặp là: Tại sao tôi phải mua Agentify khi đã dùng Pancake hay Sapo? Câu trả lời rất rõ ràng: Hệ thống cũ giúp bạn lưu trữ và tổ chức dữ liệu, nhưng Agentify giúp bạn 'vận hành' trên dữ liệu đó. Bạn không mua Agentify để thay thế phần mềm cũ, bạn mua Agentify để có một nhân sự AI làm việc 24/7 với ROI có thể đo lường được ngay lập tức qua số lượng đơn hàng và lịch hẹn."
+
+## Slide 7. Competitive Landscape (20s)
+"Trong bản đồ cạnh tranh, trong khi các đối thủ tập trung vào bề ngang – tức là quản lý và lưu trữ, Agentify chọn đi sâu vào lớp thực thi. Các nền tảng hiện tại giúp doanh nghiệp quản lý vận hành, còn Agentify giúp các workflow thực sự tự chạy. Chúng tôi không đối đầu về tính năng quản lý, chúng tôi đối đầu bằng kết quả cuối cùng: 'Booking completed' hay 'Order created'."
+
+## Slide 8. Moat - Lợi thế cạnh tranh (20s)
+"Lợi thế bền vững của chúng tôi nằm ở 4 trụ cột: Một là đi sâu vào từng ngành dọc (Vertical depth). Hai là chất lượng thực thi của Agent vượt trội. Ba là khả năng tích hợp trung lập, không phụ thuộc vào bất kỳ vendor nào. Và cuối cùng là tốc độ triển khai cực nhanh. Moat của Agentify không chỉ là công nghệ AI, mà là bộ 'playbook' thực thi chuẩn xác trong từng ngữ cảnh kinh doanh cụ thể."
+
+## Slide 9. Target User (15s)
+"Chúng tôi nhắm đến hai đối tượng chính: Người mua là các chủ shop hoặc quản lý spa/clinic – những người đang trực tiếp mất tiền vì bỏ sót lead. Còn người dùng là đội ngũ Sales/CS – những người sẽ được giải phóng khỏi các tác vụ lặp đi lặp lại để tập trung vào việc tư vấn chuyên sâu và xây dựng mối quan hệ với khách hàng."
+
+## Slide 10. Business Model (15s)
+"Mô hình kinh doanh của chúng tôi rất linh hoạt: Phí nền tảng hàng tháng kết hợp với phí dựa trên hiệu quả thực tế (outcome-based pricing). Chúng tôi không bán công cụ tính theo đầu người (seat-based), chúng tôi bán năng suất thực thi mà doanh nghiệp có thể nhìn thấy rõ ràng trên báo cáo doanh thu cuối tháng."
+
+## Slide 11. Vision & Rollout (20s)
+"Tầm nhìn của Agentify là 100% autonomous commerce operations – vận hành thương mại tự động hoàn toàn. Tuy nhiên, chúng tôi không làm dàn trải. Cách đi của chúng tôi là: Tự động hóa 100% cho những workflow hẹp và có ranh giới rõ ràng trước (như đặt lịch hay check đơn), sau đó mới mở rộng dần sang các quy trình phức tạp hơn."
+
+## Slide 12. Beachhead Market (20s)
+"Thị trường mục tiêu ban đầu của chúng tôi là ngành Beauty, Spa và Clinic. Đây là ngành có lượng lead cực lớn, quy trình đặt lịch nhiều bước và giá trị mỗi lịch hẹn rất cao. Việc bỏ lỡ một tin nhắn hay quên nhắc lịch follow-up là mất tiền ngay lập tức. Đây chính là 'mảnh đất màu mỡ' để Agentify chứng minh sức mạnh tự động hóa hoàn toàn."
+
+## Slide 13. Go-To-Market (20s)
+"Kế hoạch trong 3 tháng tới: Chúng tôi tập trung vào 5-10 khách hàng pilot trong ngành làm đẹp để chứng minh các chỉ số KPI thực tế: từ tỷ lệ chốt đơn, thời gian phản hồi đến khả năng cứu lead. Khi một workflow đã chạy trơn tru không cần người, chúng tôi sẽ scale nhanh chóng thông qua các cộng đồng SME và đối tác agency."
+
+## Slide 14. Thank You! (15s)
+"Mọi doanh nghiệp đều đã có phần mềm. Bước nhảy tiếp theo không phải là mua thêm một cái dashboard nữa, mà là trao cho phần mềm đó một AI Operator có khả năng tự làm việc. Hãy để AI vận hành công việc kinh doanh của bạn. Tôi là Vũ Minh Phùng từ Agentify. Xin cảm ơn mọi người đã lắng nghe!"
