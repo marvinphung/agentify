@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     kiotviet_token_url: str = "https://id.kiotviet.vn/connect/token"
     kiotviet_api_base_url: str = "https://public.kiotapi.com"
     kiotviet_create_real_orders: bool = False
+    demo_stock_fallback: int = 0
 
     llm_api_key: str = ""
     llm_base_url: str = "https://api.openai.com/v1"

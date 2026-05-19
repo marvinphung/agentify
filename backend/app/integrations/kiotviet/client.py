@@ -47,6 +47,8 @@ class KiotVietClient:
             response = await client.request(method, url, headers=headers, params=params, json=json)
         if response.status_code >= 400:
             raise IntegrationError("KiotViet API trả lỗi.", details={"status_code": response.status_code, "path": path})
+        if not response.content:
+            return {}
         return response.json()
 
     async def list_products(self, *, page_size: int = 20, current_item: int = 0, search_term: str | None = None) -> dict[str, Any]:
@@ -54,6 +56,21 @@ class KiotVietClient:
         if search_term:
             params["name"] = search_term
         return await self._request("GET", "/products", params=params)
+
+    async def list_categories(self, *, page_size: int = 100) -> dict[str, Any]:
+        return await self._request("GET", "/categories", params={"pageSize": page_size})
+
+    async def create_category(self, name: str) -> dict[str, Any]:
+        return await self._request("POST", "/categories", json={"categoryName": name})
+
+    async def list_branches(self, *, page_size: int = 100) -> dict[str, Any]:
+        return await self._request("GET", "/branches", params={"pageSize": page_size})
+
+    async def create_product(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._request("POST", "/products", json=payload)
+
+    async def delete_product(self, product_id: int) -> dict[str, Any]:
+        return await self._request("DELETE", f"/products/{product_id}")
 
     async def create_order(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._request("POST", "/orders", json=payload)
@@ -73,4 +90,3 @@ def product_stock(product: dict[str, Any]) -> int:
     if inventories and isinstance(inventories[0], dict):
         return int(inventories[0].get("onHand") or inventories[0].get("onhand") or 0)
     return int(product.get("onHand") or product.get("stock") or 0)
-

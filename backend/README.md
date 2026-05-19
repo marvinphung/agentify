@@ -61,7 +61,7 @@ Gửi tin nhắn demo:
 ```bash
 curl -X POST http://127.0.0.1:8000/api/channels/demo/messages \
   -H 'Content-Type: application/json' \
-  -d '{"customer_name":"Nguyễn Thảo","message":"Đặt cho chị 2 Bánh AFC, giao tới 12 Nguyễn Trãi, SĐT 0901234567"}'
+  -d '{"customer_name":"Nguyễn Thảo","message":"Đặt cho chị 2 serum vitamin C, giao tới 12 Nguyễn Trãi, SĐT 0901234567"}'
 ```
 
 ## LLM

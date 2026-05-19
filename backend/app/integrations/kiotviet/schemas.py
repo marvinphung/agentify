@@ -34,3 +34,12 @@ class ProductResponse(BaseModel):
 class SyncProductsResponse(BaseModel):
     synced: int
 
+
+class SeedProductsResponse(BaseModel):
+    seeded: int
+
+
+class CreateKiotVietCosmeticsResponse(BaseModel):
+    created: int
+    existing: int
+    synced: int

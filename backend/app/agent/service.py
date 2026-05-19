@@ -64,7 +64,7 @@ def _order_reply(product_result: ToolResult, quantity: int, order: Order | None)
     name = product_result.data.get("name", "sản phẩm")
     order_code = f"#{order.id}" if order else ""
     total = int(order.total) if order else 0
-    return f"Dạ em đã tạo đơn nháp {order_code}: {quantity} {name}, tổng tạm tính {total:,}đ. Nhân viên sẽ xác nhận trước khi giao."
+    return f"Dạ em đã tạo đơn nháp {order_code} và gửi hóa đơn tạm tính trong khung chat: {quantity} {name}, tổng {total:,}đ. Nhân viên sẽ xác nhận trước khi giao."
 
 
 def _persist_actions(db: Session, conversation_id: int, actions: list[ToolResult]) -> None:
