@@ -1,3 +1,5 @@
+name: agentify
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -19,18 +21,18 @@ services:
 
   app:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
     container_name: agentify-api
     restart: unless-stopped
     env_file:
-      - .env
+      - ../.env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-agentify}:${POSTGRES_PASSWORD:-agentify}@postgres:5432/${POSTGRES_DB:-agentify}
       API_HOST: 0.0.0.0
       API_PORT: 8000
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "${API_PORT:-8763}:8000"
     depends_on:
       postgres:
         condition: service_healthy

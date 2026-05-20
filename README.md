@@ -124,12 +124,13 @@ Infrastructure:
 │   │   ├── integrations/    # KiotViet integration
 │   │   ├── models/          # SQLAlchemy models
 │   │   └── orders/          # Order API/schema
+│   ├── Dockerfile
+│   ├── docker-compose.yml
 │   └── tests/
 ├── frontend/                # React/Vite frontend
 │   └── src/app/App.tsx      # Main MVP UI
 ├── specs/                   # MVP planning docs
 ├── docs/                    # Supporting docs
-├── docker-compose.yml
 └── README.md
 ```
 
@@ -165,7 +166,7 @@ KIOTVIET_CLIENT_SECRET=your_client_secret
 Từ root repo:
 
 ```bash
-docker compose up -d --build
+docker compose -f backend/docker-compose.yml up -d --build
 ```
 
 Backend chạy tại:

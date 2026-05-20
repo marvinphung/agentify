@@ -18,16 +18,16 @@ uv run uvicorn app.main:app --reload --port 8000
 Từ root repo:
 
 ```bash
-docker compose up --build
+docker compose -f backend/docker-compose.yml up --build
 ```
 
 API chạy ở:
 
 ```text
-http://localhost:8000
+http://localhost:8763
 ```
 
-PostgreSQL expose ra host ở port `5433` để tránh đụng Postgres local port `5432`.
+PostgreSQL expose ra host ở port `5441` để tránh đụng Postgres local port `5432`.
 
 PostgreSQL local:
 
@@ -45,7 +45,7 @@ docker run --name agentify-postgres \
 Connect KiotViet:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/integrations/kiotviet/connect \
+curl -X POST http://127.0.0.1:8763/api/integrations/kiotviet/connect \
   -H 'Content-Type: application/json' \
   -d '{"retailer":"<retailer>","client_id":"<client_id>","client_secret":"<client_secret>"}'
 ```
@@ -53,13 +53,13 @@ curl -X POST http://127.0.0.1:8000/api/integrations/kiotviet/connect \
 Sync sản phẩm:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/integrations/kiotviet/sync-products
+curl -X POST http://127.0.0.1:8763/api/integrations/kiotviet/sync-products
 ```
 
 Gửi tin nhắn demo:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/channels/demo/messages \
+curl -X POST http://127.0.0.1:8763/api/channels/demo/messages \
   -H 'Content-Type: application/json' \
   -d '{"customer_name":"Nguyễn Thảo","message":"Đặt cho chị 2 serum vitamin C, giao tới 12 Nguyễn Trãi, SĐT 0901234567"}'
 ```
