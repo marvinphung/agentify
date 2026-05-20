@@ -10,8 +10,35 @@ type ProductItem = { id: number, name: string, code?: string | null, base_price:
 type ChatAction = { type: string, status: string, summary: string };
 type ChatOrder = { id: number, kiotviet_order_code?: string | null, status: string, total: string, customer_name?: string | null, customer_phone?: string | null, shipping_address?: string | null, items?: { name: string, quantity: number, price: number }[] };
 type DemoChatResponse = { conversation_id: number, reply: string, actions: ChatAction[], order: ChatOrder | null };
+type AgentChatResponse = { conversation_id: number | null, intent: string, reply: string, recommended_products: { id: number, name: string, price: number, stock: number, reason: string }[], quick_replies: string[], actions: string[] };
+type UserChatMessage = { sender: 'customer' | 'ai', text: string };
+type ConversationItem = { id: number, customer_name: string, customer_phone?: string | null, channel: string, status: string, created_at: string };
+type StoredMessage = { id: number, sender: string, content: string, created_at: string };
+type PaymentMethod = 'cod' | 'prepaid' | null;
+type Recommendation = { name: string, price: number, fit: string, skin: string, image: string };
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const sunscreenRecommendations: Recommendation[] = [
+  { name: 'Kem chống nắng kiềm dầu SkinPure SPF50 50ml', price: 235000, fit: 'Phù hợp da dầu, cần finish ráo nhẹ', skin: 'Da dầu', image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Kem chống nắng cho da mụn AcneSafe SPF50 50ml', price: 330000, fit: 'Ưu tiên da mụn, dễ bí tắc, cần công thức nhẹ', skin: 'Da mụn', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Kem chống nắng phục hồi CicaShield SPF50 45ml', price: 360000, fit: 'Hợp da nhạy cảm, da đang treatment', skin: 'Da nhạy cảm', image: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Kem chống nắng nâng tông GlowCare SPF50 50ml', price: 295000, fit: 'Hợp da thường/da khô, muốn nâng tông nhẹ', skin: 'Da khô', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Kem chống nắng vật lý Mineral Calm SPF50 50ml', price: 390000, fit: 'Hợp da dễ kích ứng, ưu tiên màng lọc vật lý', skin: 'Da nhạy cảm', image: 'https://images.unsplash.com/photo-1612817288484-6f916006741a?auto=format&fit=crop&w=600&q=80' },
+];
+const maskRecommendations: Recommendation[] = [
+  { name: 'Mặt nạ phục hồi sau kích ứng 5 miếng', price: 180000, fit: 'Làm dịu, cấp ẩm nhanh sau khi da bị đỏ hoặc khô căng', skin: 'Da nhạy cảm', image: 'https://images.unsplash.com/photo-1596755389378-c31d21fd1273?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Mặt nạ đất sét kiềm dầu 100g', price: 230000, fit: 'Hút dầu thừa vùng chữ T, dùng 1-2 lần mỗi tuần', skin: 'Da dầu', image: 'https://images.unsplash.com/photo-1522338242992-e1a54906a8da?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Toner cấp ẩm rau má 250ml', price: 190000, fit: 'Có thể dùng làm lotion mask nhẹ cho da thiếu ẩm', skin: 'Da mụn', image: 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=600&q=80' },
+];
+const serumRecommendations: Recommendation[] = [
+  { name: 'Serum vitamin C sáng da 30ml', price: 320000, fit: 'Hợp nhu cầu làm sáng và đều màu da', skin: 'Da xỉn màu', image: 'https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Serum cấp ẩm Hyaluronic Acid 30ml', price: 275000, fit: 'Cấp nước tốt, dễ kết hợp routine sáng/tối', skin: 'Da khô', image: 'https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Tinh chất phục hồi rau má 30ml', price: 245000, fit: 'Làm dịu da sau mụn hoặc sau treatment nhẹ', skin: 'Da mụn', image: 'https://images.unsplash.com/photo-1617897903246-719242758050?auto=format&fit=crop&w=600&q=80' },
+];
+const cleanserRecommendations: Recommendation[] = [
+  { name: 'Sữa rửa mặt dịu nhẹ cho da nhạy cảm 120ml', price: 185000, fit: 'Làm sạch nhẹ, ưu tiên da dễ kích ứng', skin: 'Da nhạy cảm', image: 'https://images.unsplash.com/photo-1556228453-efd6c1ff04f6?auto=format&fit=crop&w=600&q=80' },
+  { name: 'Sữa rửa mặt trà xanh 150ml', price: 165000, fit: 'Hợp da dầu, da mụn nhẹ, cần cảm giác sạch thoáng', skin: 'Da dầu', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?auto=format&fit=crop&w=600&q=80' },
+];
 
 async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -35,6 +62,7 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export default function App() {
+  const [pathname, setPathname] = useState(window.location.pathname);
   const [appMode, setAppMode] = useState<AppMode>('landing');
   const [activeScreen, setActiveScreen] = useState<Screen>('overview');
   const [modal, setModal] = useState<Modal>(null);
@@ -69,7 +97,13 @@ export default function App() {
     refreshBackendState();
   }, []);
 
-  if (window.location.pathname === '/user_chat') {
+  useEffect(() => {
+    const syncPathname = () => setPathname(window.location.pathname);
+    window.addEventListener('popstate', syncPathname);
+    return () => window.removeEventListener('popstate', syncPathname);
+  }, []);
+
+  if (pathname === '/user_chat') {
     return <UserChatScreen />;
   }
 
@@ -502,167 +536,492 @@ function ConnectionLoadingScreen({ title, description }: { title: string, descri
 }
 
 function UserChatScreen() {
-  const [customerName, setCustomerName] = useState('Nguyễn Thảo');
-  const [customerPhone, setCustomerPhone] = useState('0901234567');
-  const [message, setMessage] = useState('Đặt cho chị 2 serum vitamin C, giao tới 12 Nguyễn Trãi');
+  const [customerName, setCustomerName] = useState(() => window.localStorage.getItem('agentify_user_chat_customer_name') || '');
+  const [customerPhone, setCustomerPhone] = useState(() => window.localStorage.getItem('agentify_user_chat_customer_phone') || '');
+  const [profileReady, setProfileReady] = useState(() => Boolean(window.localStorage.getItem('agentify_user_chat_customer_name') && window.localStorage.getItem('agentify_user_chat_customer_phone')));
+  const [address, setAddress] = useState('12 Nguyễn Trãi, Hà Nội');
+  const [message, setMessage] = useState('');
   const [products, setProducts] = useState<ProductItem[]>([]);
-  const [messages, setMessages] = useState<{ sender: 'customer' | 'ai', text: string }[]>([
-    { sender: 'ai', text: 'Chào chị, em là nhân viên AI của Lumi Beauty. Chị cần tìm sản phẩm nào ạ?' }
+  const [conversationId, setConversationId] = useState<number | null>(() => {
+    const saved = window.localStorage.getItem('agentify_user_chat_conversation_id');
+    return saved ? Number(saved) : null;
+  });
+  const [messages, setMessages] = useState<UserChatMessage[]>([
+    { sender: 'ai', text: 'Chào chị, Lumi Beauty có thể hỗ trợ chị tư vấn sản phẩm, đặt hàng hoặc chăm sóc sau mua ạ.' }
   ]);
   const [actions, setActions] = useState<ChatAction[]>([]);
+  const [llmRecommendations, setLlmRecommendations] = useState<AgentChatResponse['recommended_products']>([]);
+  const [llmQuickReplies, setLlmQuickReplies] = useState<string[]>([]);
   const [order, setOrder] = useState<ChatOrder | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Recommendation | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
+  const [pendingPurchaseIntent, setPendingPurchaseIntent] = useState<string | null>(null);
+  const [pendingOrderMessage, setPendingOrderMessage] = useState<string | null>(null);
+  const [deliveryPreference, setDeliveryPreference] = useState<string | null>(null);
+  const [appointment, setAppointment] = useState<{ name: string, time: string, service: string } | null>(null);
+  const [irritationVerified, setIrritationVerified] = useState(false);
+  const [showIrritationInfoRequest, setShowIrritationInfoRequest] = useState(false);
+  const [showSunscreens, setShowSunscreens] = useState(false);
+  const [showBudgetChoices, setShowBudgetChoices] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadProducts = async () => {
     await apiRequest('/api/demo/create-cosmetics-in-kiotviet', { method: 'POST' });
     const rows = await apiRequest<ProductItem[]>('/api/kiotviet/products');
-    setProducts(rows.filter((product) => !product.name.toLowerCase().includes('bánh')).slice(0, 12));
+    setProducts(rows.filter((product) => !product.name.toLowerCase().includes('bánh')).slice(0, 28));
   };
 
   useEffect(() => {
     loadProducts().catch(() => setError('Chưa kết nối được backend. Hãy chạy docker compose trước.'));
   }, []);
 
-  const sendMessage = async () => {
-    const text = message.trim();
-    if (!text) return;
+  const appendAi = (text: string) => setMessages((current) => [...current, { sender: 'ai', text }]);
+  const appendCustomer = (text: string) => setMessages((current) => [...current, { sender: 'customer', text }]);
+  const rememberConversation = (id: number | null | undefined) => {
+    if (!id) return;
+    setConversationId(id);
+    window.localStorage.setItem('agentify_user_chat_conversation_id', String(id));
+  };
+
+  const saveCustomerProfile = () => {
+    const name = customerName.trim();
+    const phone = customerPhone.trim();
+    if (!name || !phone) {
+      setError('Chị vui lòng nhập tên và số điện thoại để Lumi hỗ trợ đúng đơn hàng.');
+      return;
+    }
+    const oldPhone = window.localStorage.getItem('agentify_user_chat_customer_phone');
+    window.localStorage.setItem('agentify_user_chat_customer_name', name);
+    window.localStorage.setItem('agentify_user_chat_customer_phone', phone);
+    setCustomerName(name);
+    setCustomerPhone(phone);
+    if (oldPhone && oldPhone !== phone) {
+      window.localStorage.removeItem('agentify_user_chat_conversation_id');
+      setConversationId(null);
+      setMessages([{ sender: 'ai', text: `Chào chị ${name}, Lumi Beauty có thể hỗ trợ chị tư vấn sản phẩm, đặt hàng hoặc chăm sóc sau mua ạ.` }]);
+    } else if (messages.length === 1) {
+      setMessages([{ sender: 'ai', text: `Chào chị ${name}, Lumi Beauty có thể hỗ trợ chị tư vấn sản phẩm, đặt hàng hoặc chăm sóc sau mua ạ.` }]);
+    }
+    setError(null);
+    setProfileReady(true);
+  };
+
+  const startSunscreenScenario = () => {
+    const text = 'Chị cần tư vấn kem chống nắng';
+    appendCustomer(text);
+    setShowSunscreens(true);
+    setShowBudgetChoices(false);
+    setAppointment(null);
+    setIrritationVerified(false);
+    setShowIrritationInfoRequest(false);
+    setOrder(null);
+    setActions([
+      { type: 'intent_detected', status: 'success', summary: 'Nhận diện ý định: tư vấn kem chống nắng' },
+      { type: 'product_recommendation', status: 'success', summary: 'Đã lọc top 5 sản phẩm chống nắng phù hợp từ KiotViet' }
+    ]);
+    appendAi(`Dạ chị ${customerName}, em gửi chị 5 kem chống nắng đang bán tốt tại spa. Trước khi chốt sản phẩm, chị cho em biết da mình thuộc nhóm nào để em tư vấn đúng hơn: da dầu, da mụn, da khô hay da nhạy cảm ạ?`);
+  };
+
+  const chooseSkinType = (skinType: string) => {
+    appendCustomer(`Da chị là ${skinType}`);
+    setShowBudgetChoices(true);
+    appendAi(`Dạ chị ${customerName}, với ${skinType}, em sẽ ưu tiên sản phẩm ít gây bí da, không làm nặng mặt và phù hợp dùng hằng ngày. Chị muốn chọn theo mức giá nào ạ?`);
+  };
+
+  const chooseBudget = (label: string, product: Recommendation) => {
+    setSelectedProduct(product);
+    setShowBudgetChoices(false);
+    appendCustomer(`Chị chọn mức ${label}`);
+    appendAi(`Em đề xuất tốt nhất cho chị ${customerName} là ${product.name}. Giá ${product.price.toLocaleString('vi-VN')}đ. Sản phẩm này phù hợp vì ${product.fit.toLowerCase()}. Nếu chị đồng ý, chị xác nhận giúp em họ tên, số điện thoại và địa chỉ giao hàng nhé.`);
+  };
+
+  const confirmCustomerInfo = () => {
+    if (!selectedProduct) return;
+    appendCustomer(`${customerName}, ${customerPhone}, ${address}`);
+    appendAi(`Em xác nhận đơn của chị:\n- Sản phẩm: ${selectedProduct.name}\n- Số lượng: 1\n- Người nhận: ${customerName}\n- SĐT: ${customerPhone}\n- Địa chỉ: ${address}\nChị chọn hình thức thanh toán giúp em ạ.`);
+  };
+
+  const createOrder = async (method: Exclude<PaymentMethod, null>) => {
+    if (!selectedProduct) return;
+    setPaymentMethod(method);
+    const methodText = method === 'cod' ? 'thanh toán khi nhận hàng' : 'thanh toán trước bằng QR';
+    appendCustomer(`Chị chọn ${methodText}`);
     setLoading(true);
     setError(null);
-    setOrder(null);
-    setMessages((current) => [...current, { sender: 'customer', text }]);
     try {
       const result = await apiRequest<DemoChatResponse>('/api/channels/demo/messages', {
         method: 'POST',
         body: JSON.stringify({
+          conversation_id: conversationId,
           customer_name: customerName,
           customer_phone: customerPhone,
-          message: text
+          message: `Đặt cho chị 1 ${selectedProduct.name}, giao tới ${address}`
         })
       });
-      setMessages((current) => [...current, { sender: 'ai', text: result.reply }]);
-      setActions(result.actions);
+      rememberConversation(result.conversation_id);
       setOrder(result.order);
+      setActions(result.actions);
+      appendAi(method === 'prepaid'
+        ? 'Dạ em đã tạo hóa đơn tạm tính và gửi QR thanh toán trong khung chat. Sau khi chị chuyển khoản, spa sẽ xác nhận và đóng gói đơn. Em cảm ơn chị.'
+        : 'Dạ em đã tạo hóa đơn tạm tính. Đơn của chị sẽ được thanh toán khi nhận hàng. Em cảm ơn chị.');
+      appendAi('Dự kiến đơn sẽ đến trong 2-3 ngày làm việc. Nếu cần đổi địa chỉ, chị nhắn lại cho em trước khi đơn được bàn giao vận chuyển ạ. Lumi cảm ơn chị.');
     } catch (err) {
-      const fallback = err instanceof Error ? err.message : 'Không gửi được tin nhắn.';
+      const fallback = err instanceof Error ? err.message : 'Không tạo được đơn.';
       setError(fallback);
-      setMessages((current) => [...current, { sender: 'ai', text: fallback }]);
+      appendAi(fallback);
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="size-full overflow-auto bg-[#f7faf8] text-slate-950">
-      <div className="mx-auto grid min-h-full max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[330px_1fr_340px]">
-        <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-600 text-white">
+  const startIrritationScenario = () => {
+    appendCustomer('Chị mua sữa rửa mặt bên em xong bị rát và hơi đỏ da');
+    setShowSunscreens(false);
+    setShowBudgetChoices(false);
+    setOrder(null);
+    setSelectedProduct(null);
+    setAppointment(null);
+    setIrritationVerified(false);
+    setShowIrritationInfoRequest(true);
+    setActions([
+      { type: 'intent_detected', status: 'success', summary: 'Nhận diện tình huống sau mua: khách có dấu hiệu kích ứng' },
+      { type: 'handoff_safety', status: 'success', summary: 'Áp dụng kịch bản an toàn: trấn an, hướng dẫn tạm ngưng và cần xác minh đơn hàng' }
+    ]);
+    appendAi('Dạ em rất tiếc vì chị đang bị rát và đỏ da. Chị tạm ngưng dùng sản phẩm, rửa mặt bằng nước mát, tránh tẩy da chết/treatment trong 24-48 giờ và không tự bôi thêm hoạt chất mạnh giúp em nhé. Lumi Beauty sẽ hỗ trợ chị kiểm tra da miễn phí tại trung tâm để xác định nguyên nhân và đổi hướng chăm sóc phù hợp.');
+    appendAi('Để em tra lại đơn hàng và chuyển đúng hồ sơ cho chuyên viên, chị cho em xin một trong các thông tin sau nhé: mã đơn hàng, số điện thoại mua hàng, hoặc họ tên người nhận. Nếu đúng số điện thoại đang chat là số mua hàng, chị bấm “Dùng số điện thoại này”.');
+  };
+
+  const verifyIrritationCustomer = (source: string) => {
+    appendCustomer(source);
+    setIrritationVerified(true);
+    setShowIrritationInfoRequest(false);
+    setActions((current) => [
+      ...current,
+      { type: 'customer_lookup', status: 'success', summary: `Đã xác minh hồ sơ khách hàng: ${customerName} - ${customerPhone}` },
+      { type: 'order_lookup', status: 'success', summary: 'Đã tìm thấy đơn sữa rửa mặt dịu nhẹ cho da nhạy cảm trong lịch sử mua hàng' }
+    ]);
+    appendAi(`Dạ em đã tìm thấy hồ sơ của chị ${customerName} với số ${customerPhone}. Đơn gần nhất là sữa rửa mặt dịu nhẹ cho da nhạy cảm. Em đã ghi nhận phản hồi kích ứng vào hồ sơ chăm sóc sau mua.`);
+    appendAi('Bên em mời chị ghé trung tâm kiểm tra da miễn phí. Chị muốn ghé vào khung nào ạ? Em có thể giữ lịch chiều nay 16:30, tối nay 19:00 hoặc sáng mai 09:30.');
+  };
+
+  const bookAppointment = (time: string) => {
+    if (!irritationVerified) {
+      appendAi('Dạ trước khi đặt lịch, em cần xác minh thông tin mua hàng để chuyên viên có đủ hồ sơ sản phẩm chị đã dùng ạ.');
+      setShowIrritationInfoRequest(true);
+      return;
+    }
+    appendCustomer(`Chị muốn đặt lịch ${time}`);
+    setAppointment({ name: customerName, time, service: 'Kiểm tra kích ứng da miễn phí' });
+    setActions((current) => [...current, { type: 'appointment_create', status: 'success', summary: `Đã tạo lịch kiểm tra miễn phí: ${time}` }]);
+    appendAi(`Dạ em đã giữ lịch ${time} cho chị tại Lumi Beauty. Khi đến chị mang theo sản phẩm đã dùng và hình ảnh tình trạng da nếu có. Lịch này hoàn toàn miễn phí, chuyên viên sẽ kiểm tra và tư vấn hướng xử lý an toàn cho chị ạ.`);
+  };
+
+  const askBackendAgent = async (text: string) => {
+    setLoading(true);
+    setError(null);
+    setOrder(null);
+    setShowSunscreens(false);
+    setShowBudgetChoices(false);
+    setShowIrritationInfoRequest(false);
+    setAppointment(null);
+    setLlmRecommendations([]);
+    setLlmQuickReplies([]);
+    try {
+      const result = await apiRequest<AgentChatResponse>('/api/agent/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          message: text
+        })
+      });
+      rememberConversation(result.conversation_id);
+      appendAi(result.reply);
+      setLlmRecommendations(result.recommended_products);
+      setLlmQuickReplies(result.quick_replies);
+      setActions(result.actions.map((summary, index) => ({
+        type: index === 0 ? 'intent_detected' : 'llm_action',
+        status: 'success',
+        summary
+      })));
+    } catch (err) {
+      const fallback = err instanceof Error ? err.message : 'Hiện chưa xử lý được tin nhắn. Chị thử gửi lại giúp em nhé.';
+      setError(fallback);
+      appendAi(fallback);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const messageHasShippingInfo = (text: string) => {
+    const normalized = text.toLowerCase();
+    return normalized.includes('giao') || normalized.includes('địa chỉ') || normalized.includes('dia chi') || normalized.includes('nhận hàng') || normalized.includes('nhan hang');
+  };
+
+  const createDirectOrderFromMessage = async (text: string, forceCreate = false) => {
+    if (!forceCreate && !messageHasShippingInfo(text)) {
+      setPendingOrderMessage(text);
+      setDeliveryPreference(null);
+    appendAi(`Dạ chị ${customerName}, Lumi đã có tên và số điện thoại của chị rồi. Chị cho em xin địa chỉ giao hàng và khung giờ chị có thể nhận hàng ạ. Em cảm ơn chị.`);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setOrder(null);
+    setLlmRecommendations([]);
+    setLlmQuickReplies([]);
+    try {
+      const result = await apiRequest<DemoChatResponse>('/api/channels/demo/messages', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          message: text
+        })
+      });
+      rememberConversation(result.conversation_id);
+      appendAi(result.reply);
+      setOrder(result.order);
+      setPaymentMethod('cod');
+      setPendingOrderMessage(null);
+      setActions(result.actions);
+    } catch (err) {
+      const fallback = err instanceof Error ? err.message : 'Không tạo được đơn.';
+      setError(fallback);
+      appendAi(fallback);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const consultBeforeOrder = async (text: string) => {
+    setPendingPurchaseIntent(text);
+    await askBackendAgent(text.replace(/^(đặt|dat|mua|lấy|lay)\s+/i, 'Tư vấn '));
+    appendAi(`Nếu chị ${customerName} muốn đặt sản phẩm này, chị nhắn "Đồng ý đặt" giúp em. Sau đó Lumi sẽ xin địa chỉ và khung giờ nhận hàng để lên đơn ạ. Em cảm ơn chị.`);
+  };
+
+  const sendMessage = async () => {
+    const text = message.trim();
+    if (!text) return;
+    const lower = text.toLowerCase();
+    setMessage('');
+    appendCustomer(text);
+    if (pendingOrderMessage) {
+      setDeliveryPreference(text);
+      createDirectOrderFromMessage(`${pendingOrderMessage}, giao tới ${text}`, true);
+      return;
+    }
+    if (pendingPurchaseIntent && (lower.includes('đồng ý') || lower.includes('dong y') || lower.includes('chốt') || lower.includes('chot') || lower.includes('ok'))) {
+      createDirectOrderFromMessage(pendingPurchaseIntent);
+      setPendingPurchaseIntent(null);
+      return;
+    }
+    if (lower.includes('dat lich') || lower.includes('đặt lịch')) {
+      startIrritationScenario();
+      return;
+    }
+    if (lower.includes('đặt') || lower.includes('dat') || lower.includes('mua') || lower.includes('lấy')) {
+      consultBeforeOrder(text);
+      return;
+    }
+    askBackendAgent(text);
+  };
+
+  if (!profileReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#eef5f1] px-4 text-slate-950">
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveCustomerProfile();
+          }}
+          className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/80"
+        >
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-600 text-white">
               <Zap className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-lg font-bold">Lumi Beauty</div>
-              <div className="text-xs font-medium text-teal-700">Chat mua mỹ phẩm</div>
+              <div className="text-xl font-bold text-slate-950">Lumi Beauty</div>
+              <div className="text-sm text-slate-500">Nhập thông tin để shop hỗ trợ đúng đơn hàng</div>
             </div>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <label className="block">
               <span className="text-sm font-semibold text-slate-700">Tên của chị</span>
-              <input value={customerName} onChange={(event) => setCustomerName(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <input
+                value={customerName}
+                onChange={(event) => setCustomerName(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
+                placeholder="Ví dụ: Nguyễn Thảo"
+                autoFocus
+              />
             </label>
             <label className="block">
               <span className="text-sm font-semibold text-slate-700">Số điện thoại</span>
-              <input value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              <input
+                value={customerPhone}
+                onChange={(event) => setCustomerPhone(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
+                placeholder="Ví dụ: 0901234567"
+                inputMode="tel"
+              />
             </label>
           </div>
-          <div className="mt-5 rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm leading-6 text-teal-900">
-            Chị có thể nhắn tự nhiên, ví dụ: “Đặt cho chị 2 serum vitamin C, giao tới 12 Nguyễn Trãi”.
-          </div>
-          <button onClick={loadProducts} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:text-teal-700">
-            <RefreshCw className="h-4 w-4" />
-            Làm mới sản phẩm
+          {error && <div className="mt-4 rounded-xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
+          <button className="mt-6 w-full rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700">
+            Bắt đầu trò chuyện
           </button>
-          {error && <div className="mt-4 rounded-lg border border-coral-200 bg-coral-50 p-3 text-sm text-coral-700">{error}</div>}
-        </aside>
+        </form>
+      </div>
+    );
+  }
 
-        <main className="flex min-h-[720px] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <header className="border-b border-slate-200 p-5">
-            <div className="text-2xl font-bold text-slate-950">Tin nhắn với nhân viên AI</div>
-            <div className="mt-1 text-sm text-slate-600">AI sẽ tìm sản phẩm, kiểm tra tồn kho và tạo đơn nháp bằng backend Agentify.</div>
-          </header>
-          <div className="flex-1 space-y-4 overflow-auto bg-slate-50 p-5">
+  return (
+    <div className="size-full bg-[#eef5f1] text-slate-950">
+      <main className="mx-auto flex h-full min-h-screen w-full max-w-3xl flex-col bg-white shadow-xl shadow-slate-200/80 sm:my-6 sm:h-[calc(100vh-48px)] sm:min-h-0 sm:rounded-[28px] sm:border sm:border-slate-200">
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:rounded-t-[28px] sm:px-5">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-600 text-white">
+            <Zap className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-lg font-bold text-slate-950">Lumi Beauty</div>
+            <div className="flex items-center gap-2 text-xs font-medium text-teal-700">
+              <span className="h-2 w-2 rounded-full bg-teal-500" />
+              Thường phản hồi ngay
+            </div>
+          </div>
+          <button
+            onClick={() => setProfileReady(false)}
+            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-teal-300 hover:text-teal-700"
+          >
+            {customerName} · Sửa
+          </button>
+        </header>
+
+        <div className="flex-1 space-y-4 overflow-auto bg-[#f8faf9] px-4 py-5 sm:px-5">
             {messages.map((item, index) => (
               <ChatMessage key={index} sender={item.sender === 'customer' ? 'customer' : 'ai'} text={item.text} />
             ))}
             {loading && <ChatMessage sender="ai" text="Em đang kiểm tra sản phẩm và tồn kho cho chị..." />}
-            {order && <InvoiceCard order={order} />}
-          </div>
-          <footer className="border-t border-slate-200 p-5">
-            <textarea
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              rows={3}
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
-              placeholder="Nhập tin nhắn đặt hàng..."
-            />
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
-                {['serum vitamin C', 'kem chống nắng', 'sữa rửa mặt trà xanh'].map((item) => (
-                  <button key={item} onClick={() => setMessage(`Đặt cho chị 1 ${item}, giao tới 12 Nguyễn Trãi`)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
-                    {item}
+            {llmRecommendations.length > 0 && <LlmProductPanel products={llmRecommendations} onChoose={(product) => setMessage(`Đặt cho chị 1 ${product.name}`)} />}
+            {llmQuickReplies.length > 0 && (
+              <QuickReplyGroup
+                title="Gợi ý trả lời nhanh"
+                options={llmQuickReplies}
+                onChoose={(option) => {
+                  setMessage('');
+                  appendCustomer(option);
+                  askBackendAgent(option);
+                }}
+              />
+            )}
+            {showSunscreens && <RecommendationPanel recommendations={sunscreenRecommendations} onChoose={setSelectedProduct} />}
+            {showSunscreens && (
+              <QuickReplyGroup
+                title="Chọn tình trạng da"
+                options={['Da dầu', 'Da mụn', 'Da khô', 'Da nhạy cảm']}
+                onChoose={chooseSkinType}
+              />
+            )}
+            {showBudgetChoices && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="mb-3 font-semibold text-slate-900">Chọn mức giá</div>
+                <div className="grid gap-2 md:grid-cols-3">
+                  <button onClick={() => chooseBudget('tiết kiệm dưới 300.000đ', sunscreenRecommendations[0])} className="rounded-xl border border-slate-200 p-3 text-left hover:border-teal-300 hover:bg-teal-50">
+                    <div className="font-semibold">Tiết kiệm</div>
+                    <div className="text-sm text-slate-500">Dưới 300.000đ</div>
                   </button>
-                ))}
+                  <button onClick={() => chooseBudget('cân bằng 300.000-380.000đ', sunscreenRecommendations[1])} className="rounded-xl border border-slate-200 p-3 text-left hover:border-teal-300 hover:bg-teal-50">
+                    <div className="font-semibold">Cân bằng</div>
+                    <div className="text-sm text-slate-500">300.000-380.000đ</div>
+                  </button>
+                  <button onClick={() => chooseBudget('cao cấp trên 380.000đ', sunscreenRecommendations[4])} className="rounded-xl border border-slate-200 p-3 text-left hover:border-teal-300 hover:bg-teal-50">
+                    <div className="font-semibold">Cao cấp</div>
+                    <div className="text-sm text-slate-500">Trên 380.000đ</div>
+                  </button>
+                </div>
               </div>
-              <button onClick={sendMessage} disabled={loading} className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700 disabled:opacity-60">
-                {loading ? 'Đang gửi...' : 'Gửi tin nhắn'}
+            )}
+            {selectedProduct && !order && (
+              <div className="rounded-2xl border border-teal-200 bg-white p-4">
+                <div className="font-semibold text-slate-900">Xác nhận thông tin nhận hàng</div>
+                <p className="mt-2 text-sm text-slate-600">{customerName} - {customerPhone} - {address}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button onClick={confirmCustomerInfo} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Gửi thông tin nhận hàng</button>
+                  <button onClick={() => createOrder('cod')} className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">Thanh toán khi nhận hàng</button>
+                  <button onClick={() => createOrder('prepaid')} className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">Thanh toán trước bằng QR</button>
+                </div>
+              </div>
+            )}
+            {order && (
+              <InvoiceCard
+                order={order}
+                paymentMethod={paymentMethod}
+                eta="2-3 ngày làm việc"
+                deliveryPreference={deliveryPreference}
+                onPaymentChange={(method) => {
+                  setPaymentMethod(method);
+                  appendCustomer(method === 'prepaid' ? 'Chị chọn thanh toán trước bằng QR' : 'Chị chọn thanh toán khi nhận hàng');
+                  appendAi(method === 'prepaid'
+                    ? 'Dạ em đã cập nhật hóa đơn sang thanh toán trước và gửi QR trong khung chat ạ. Em cảm ơn chị.'
+                    : 'Dạ em đã cập nhật hóa đơn sang thanh toán khi nhận hàng ạ. Em cảm ơn chị.');
+                }}
+              />
+            )}
+            {showIrritationInfoRequest && (
+              <div className="rounded-2xl border border-coral-200 bg-white p-4">
+                <div className="font-semibold text-slate-900">Xác minh thông tin mua hàng</div>
+                <p className="mt-2 text-sm text-slate-600">Lumi cần mã đơn, số điện thoại mua hàng hoặc họ tên người nhận để mở đúng hồ sơ trước khi đặt lịch kiểm tra.</p>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <button onClick={() => verifyIrritationCustomer(`Dùng số điện thoại ${customerPhone}`)} className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">Dùng số điện thoại này</button>
+                  <button onClick={() => verifyIrritationCustomer('Mã đơn: KV-MP020-1024')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Nhập mã đơn mẫu</button>
+                  <button onClick={() => verifyIrritationCustomer(`Người nhận: ${customerName}`)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Dùng họ tên</button>
+                </div>
+              </div>
+            )}
+            {!appointment && irritationVerified && (
+              <QuickReplyGroup
+                title="Chọn lịch kiểm tra miễn phí"
+                options={['Chiều nay 16:30', 'Tối nay 19:00', 'Sáng mai 09:30']}
+                onChoose={bookAppointment}
+              />
+            )}
+            {appointment && <AppointmentCard appointment={appointment} />}
+            {error && <div className="max-w-[82%] rounded-2xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
+          </div>
+
+          <footer className="border-t border-slate-200 bg-white px-4 py-4 sm:rounded-b-[28px] sm:px-5">
+            <div className="mb-3 flex flex-wrap gap-2">
+              {['Tư vấn kem chống nắng', 'Da chị bị kích ứng sau sữa rửa mặt', 'Đặt serum vitamin C'].map((item) => (
+                <button key={item} onClick={() => setMessage(item)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
+                  {item}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-end gap-3">
+              <textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                rows={2}
+                className="max-h-32 min-h-[52px] flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
+                placeholder="Nhập tin nhắn..."
+              />
+              <button onClick={sendMessage} disabled={loading} className="h-[52px] rounded-2xl bg-teal-600 px-5 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700 disabled:opacity-60">
+                {loading ? 'Đang gửi' : 'Gửi'}
               </button>
             </div>
           </footer>
         </main>
-
-        <aside className="space-y-5">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">Sản phẩm mỹ phẩm demo</h2>
-            <div className="mt-4 max-h-[360px] space-y-3 overflow-auto">
-              {products.map((product) => (
-                <button
-                  key={product.id}
-                  onClick={() => setMessage(`Đặt cho chị 1 ${product.name}, giao tới 12 Nguyễn Trãi`)}
-                  className="w-full rounded-xl border border-slate-200 p-3 text-left hover:border-teal-300 hover:bg-teal-50"
-                >
-                  <div className="font-semibold text-slate-900">{product.name}</div>
-                  <div className="mt-1 flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Còn {product.stock}</span>
-                    <span className="font-bold text-teal-700">{Number(product.base_price).toLocaleString('vi-VN')}đ</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-bold text-slate-950">AI đã xử lý</h2>
-            <div className="mt-4 space-y-3">
-              {actions.length ? actions.map((action, index) => (
-                <ActionCard key={index} icon={action.status === 'success' ? CheckCircle2 : AlertCircle} text={action.summary} />
-              )) : (
-                <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">Chưa có hành động. Hãy gửi một tin nhắn đặt hàng.</div>
-              )}
-            </div>
-          </section>
-
-          {order && (
-            <section className="rounded-2xl border border-teal-200 bg-teal-50 p-5 shadow-sm">
-              <h2 className="font-bold text-teal-950">Đơn nháp đã tạo</h2>
-              <div className="mt-3 space-y-2 text-sm text-teal-900">
-                <div>Mã nội bộ: #{order.id}</div>
-                <div>Trạng thái: {order.status}</div>
-                <div className="text-lg font-bold">Tổng: {Number(order.total).toLocaleString('vi-VN')}đ</div>
-              </div>
-            </section>
-          )}
-        </aside>
-      </div>
     </div>
   );
 }
@@ -783,6 +1142,11 @@ function KiotVietConnectScreen({
 }
 
 function LandingPage({ onEnterDemo, onNotify }: { onEnterDemo: () => void, onNotify: (message: string) => void }) {
+  const openShopChat = () => {
+    window.history.pushState(null, '', '/user_chat');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   return (
     <div className="min-h-full">
       <header className="sticky top-0 z-40 border-b border-teal-900/10 bg-[#f7faf8]/90 backdrop-blur">
@@ -803,43 +1167,56 @@ function LandingPage({ onEnterDemo, onNotify }: { onEnterDemo: () => void, onNot
             <a href="#thi-truong" className="hover:text-teal-700">Thị trường đầu tiên</a>
           </nav>
           <button
+            onClick={openShopChat}
+            className="hidden rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:border-teal-300 hover:text-teal-700 sm:inline-flex"
+          >
+            Liên hệ với shop
+          </button>
+          <button
             onClick={onEnterDemo}
             className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
           >
-            Xem demo
+            Bắt đầu ngay
           </button>
         </div>
       </header>
 
       <main>
         <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(13,148,136,0.12),transparent_38%,rgba(251,113,133,0.10))]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(13,148,136,0.16),transparent_34%),linear-gradient(120deg,rgba(13,148,136,0.08),transparent_44%,rgba(251,113,133,0.08))]" />
           <div className="relative mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.02fr_0.98fr] lg:py-20">
             <div className="flex flex-col justify-center">
               <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-medium text-teal-700 shadow-sm">
                 <CheckCircle2 className="h-4 w-4" />
-                Không thay thế hệ thống cũ. Tự động làm việc trên hệ thống đó.
+                Kết nối Zalo, KiotViet và quy trình bán hàng trong vài phút.
               </div>
               <h1 className="max-w-4xl text-5xl font-bold leading-[1.02] tracking-tight text-slate-950 lg:text-6xl">
                 Giữ nguyên hệ thống hiện tại. Thêm một nhân viên AI để tự hoàn thành công việc.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-650">
-                Agentify giúp doanh nghiệp bán hàng và dịch vụ tại Việt Nam tự động xử lý hội thoại, đặt lịch, tạo đơn và follow-up trên Zalo, Facebook cùng các nền tảng sẵn có như KiotViet, Sapo, Pancake.
+                Agentify giúp doanh nghiệp bán hàng và dịch vụ tại Việt Nam tự động xử lý hội thoại, tư vấn sản phẩm, đặt lịch, tạo đơn và follow-up trên Zalo, Facebook cùng các nền tảng sẵn có như KiotViet, Sapo, Pancake.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <button
                   onClick={onEnterDemo}
                   className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700"
                 >
-                  Xem demo sản phẩm
+                  Bắt đầu ngay
                   <ChevronRight className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => onNotify('Đã chuẩn bị bản pitch ngắn cho Agentify')}
+                  onClick={openShopChat}
+                  className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+                >
+                  Liên hệ với shop
+                  <MessageSquare className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => onNotify('Đã ghi nhận nhu cầu trao đổi pilot')}
                   className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:border-teal-300 hover:text-teal-700"
                 >
-                  Tải pitch ngắn
-                  <Download className="h-4 w-4" />
+                  Trao đổi pilot
+                  <ArrowUpRight className="h-4 w-4" />
                 </button>
               </div>
               <div className="mt-8 grid max-w-2xl grid-cols-3 gap-3">
@@ -940,11 +1317,14 @@ function LandingPage({ onEnterDemo, onNotify }: { onEnterDemo: () => void, onNot
             <div className="grid items-center gap-8 lg:grid-cols-[1fr_auto]">
               <div>
                 <h2 className="text-3xl font-bold tracking-tight text-slate-950">Bắt đầu bằng một workflow hẹp. Tự động hóa trọn vẹn. Mở rộng dần tới vận hành tự động.</h2>
-                <p className="mt-3 text-slate-600">Xem dashboard demo để thấy luồng khách nhắn tin, AI đặt lịch, lịch hẹn được tạo và ca rủi ro được chuyển cho nhân viên duyệt.</p>
+                <p className="mt-3 text-slate-600">Kết nối kênh chat, đồng bộ KiotViet và để Agentify xử lý các hội thoại đủ điều kiện ngay trong bảng điều khiển.</p>
               </div>
               <div className="flex flex-wrap gap-3">
                 <button onClick={onEnterDemo} className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-700">
-                  Xem demo sản phẩm
+                  Bắt đầu ngay
+                </button>
+                <button onClick={openShopChat} className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+                  Liên hệ với shop
                 </button>
                 <button onClick={() => onNotify('Đã ghi nhận nhu cầu trao đổi pilot')} className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 hover:border-teal-300 hover:text-teal-700">
                   Trao đổi pilot
@@ -999,7 +1379,7 @@ function HeroProductMockup({ onEnterDemo }: { onEnterDemo: () => void }) {
           </div>
         </div>
         <button onClick={onEnterDemo} className="mt-4 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-          Mở dashboard demo
+          Bắt đầu kết nối
         </button>
       </div>
     </div>
@@ -1111,8 +1491,23 @@ function OverviewScreen({ onNavigate, kiotStatus, productCount, lastDemoResult }
   );
 }
 
+function inboxStatusLabel(status: string) {
+  if (status === 'order_created') return 'Đã tạo đơn';
+  if (status === 'order_pending') return 'AI đang xử lý';
+  if (status === 'appointment_pending') return 'Đã đặt lịch';
+  if (status === 'needs_review') return 'Cần duyệt';
+  return 'AI đang xử lý';
+}
+
+function inboxStatusColor(status: string) {
+  if (status === 'order_created') return 'blue';
+  if (status === 'appointment_pending') return 'teal';
+  if (status === 'needs_review') return 'coral';
+  return 'slate';
+}
+
 function InboxScreen({ onNavigate, onOpenModal, onNotify, onDemoResult }: { onNavigate: (screen: Screen) => void, onOpenModal: (modal: Modal) => void, onNotify: (message: string) => void, onDemoResult: (result: DemoChatResponse) => void }) {
-  const [selectedChat, setSelectedChat] = useState(0);
+  const [selectedChat, setSelectedChat] = useState<number | null>(null);
   const [aiPaused, setAiPaused] = useState(false);
   const [filter, setFilter] = useState('Tất cả');
   const [customerName, setCustomerName] = useState('Nguyễn Thảo');
@@ -1120,13 +1515,39 @@ function InboxScreen({ onNavigate, onOpenModal, onNotify, onDemoResult }: { onNa
   const [message, setMessage] = useState('Đặt cho chị 2 serum vitamin C, giao tới 12 Nguyễn Trãi, SĐT 0901234567');
   const [sending, setSending] = useState(false);
   const [demoResult, setDemoResult] = useState<DemoChatResponse | null>(null);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [storedMessages, setStoredMessages] = useState<StoredMessage[]>([]);
+  const [loadingInbox, setLoadingInbox] = useState(false);
 
-  const conversations = [
-    { id: 0, name: 'Nguyễn Thảo', channel: 'Zalo OA', status: 'AI đang xử lý', preview: 'Hỏi về soi da và tư vấn mụn', statusColor: 'teal' },
-    { id: 1, name: 'Minh Anh', channel: 'Facebook', status: 'Đã đặt lịch', preview: 'Muốn tư vấn laser', statusColor: 'blue' },
-    { id: 2, name: 'Huyền Trang', channel: 'Zalo OA', status: 'Cần theo dõi lại', preview: 'Đã hỏi giá nhưng chưa xác nhận', statusColor: 'slate' },
-    { id: 3, name: 'Lan Phương', channel: 'Facebook', status: 'Cần duyệt', preview: 'Có câu hỏi liên quan tình trạng da nhạy cảm', statusColor: 'coral' }
-  ];
+  const loadConversations = async () => {
+    setLoadingInbox(true);
+    try {
+      const rows = await apiRequest<ConversationItem[]>('/api/conversations');
+      setConversations(rows);
+      setSelectedChat((current) => current ?? rows[0]?.id ?? null);
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : 'Không tải được hộp thư');
+    } finally {
+      setLoadingInbox(false);
+    }
+  };
+
+  useEffect(() => {
+    loadConversations();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedChat) {
+      setStoredMessages([]);
+      return;
+    }
+    apiRequest<StoredMessage[]>(`/api/conversations/${selectedChat}/messages`)
+      .then(setStoredMessages)
+      .catch((error) => onNotify(error instanceof Error ? error.message : 'Không tải được tin nhắn'));
+  }, [selectedChat]);
+
+  const selectedConversation = conversations.find((item) => item.id === selectedChat) || null;
+  const visibleConversations = conversations.filter((item) => filter === 'Tất cả' || inboxStatusLabel(item.status) === filter);
 
   const sendDemoMessage = async () => {
     setSending(true);
@@ -1134,14 +1555,19 @@ function InboxScreen({ onNavigate, onOpenModal, onNotify, onDemoResult }: { onNa
       const result = await apiRequest<DemoChatResponse>('/api/channels/demo/messages', {
         method: 'POST',
         body: JSON.stringify({
+          conversation_id: selectedChat,
           customer_name: customerName,
           customer_phone: customerPhone || undefined,
           message
         })
       });
       setDemoResult(result);
+      setSelectedChat(result.conversation_id);
       onDemoResult(result);
       onNotify(result.order ? `AI đã tạo đơn nháp #${result.order.id}` : 'AI đã xử lý tin nhắn demo');
+      await loadConversations();
+      const rows = await apiRequest<StoredMessage[]>(`/api/conversations/${result.conversation_id}/messages`);
+      setStoredMessages(rows);
     } catch (error) {
       onNotify(error instanceof Error ? error.message : 'Không gửi được tin nhắn demo');
     } finally {
@@ -1156,7 +1582,7 @@ function InboxScreen({ onNavigate, onOpenModal, onNotify, onDemoResult }: { onNa
         <div className="p-4 border-b border-slate-200">
           <h3 className="font-semibold text-slate-900 mb-3">Hộp thư</h3>
           <div className="flex flex-wrap gap-2">
-            {['Tất cả', 'AI đang xử lý', 'Đã đặt lịch', 'Cần duyệt', 'Cần theo dõi lại'].map((item) => (
+            {['Tất cả', 'AI đang xử lý', 'Đã tạo đơn', 'Đã đặt lịch', 'Cần duyệt'].map((item) => (
               <FilterChip
                 key={item}
                 label={item}
@@ -1170,48 +1596,53 @@ function InboxScreen({ onNavigate, onOpenModal, onNotify, onDemoResult }: { onNa
           </div>
         </div>
         <div className="flex-1 overflow-auto">
-          {conversations.map((conv) => (
+          {loadingInbox && <div className="p-4 text-sm text-slate-500">Đang tải hội thoại...</div>}
+          {!loadingInbox && visibleConversations.length === 0 && <div className="p-4 text-sm text-slate-500">Chưa có hội thoại. Mở `/user_chat` và gửi một tin nhắn để đồng bộ vào đây.</div>}
+          {visibleConversations.map((conv) => {
+            const label = inboxStatusLabel(conv.status);
+            const color = inboxStatusColor(conv.status);
+            return (
             <div
               key={conv.id}
               onClick={() => {
                 setSelectedChat(conv.id);
-                if (conv.status === 'Cần duyệt') onNavigate('approval');
+                if (conv.status === 'needs_review') onNavigate('approval');
               }}
               className={`p-4 border-b border-slate-100 cursor-pointer hover:bg-slate-50 ${
                 selectedChat === conv.id ? 'bg-slate-50' : ''
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-slate-900">{conv.name}</span>
-                <span className="text-xs text-slate-500">{conv.channel}</span>
+                <span className="font-semibold text-slate-900">{conv.customer_name}</span>
+                <span className="text-xs text-slate-500">{conv.channel === 'user_chat' ? 'Web chat' : conv.channel}</span>
               </div>
-              <p className="text-sm text-slate-600 mb-2">{conv.preview}</p>
+              <p className="text-sm text-slate-600 mb-2">{conv.customer_phone || 'Chưa có số điện thoại'}</p>
               <span className={`text-xs px-2 py-1 rounded-full ${
-                conv.statusColor === 'teal' ? 'bg-teal-50 text-teal-700' :
-                conv.statusColor === 'coral' ? 'bg-coral-50 text-coral-700' :
-                conv.statusColor === 'blue' ? 'bg-blue-50 text-blue-700' :
+                color === 'teal' ? 'bg-teal-50 text-teal-700' :
+                color === 'coral' ? 'bg-coral-50 text-coral-700' :
+                color === 'blue' ? 'bg-blue-50 text-blue-700' :
                 'bg-slate-100 text-slate-700'
               }`}>
-                {conv.status}
+                {label}
               </span>
             </div>
-          ))}
+          )})}
         </div>
       </div>
 
       {/* Chat Panel */}
       <div className="flex-1 flex flex-col bg-white">
         <div className="p-4 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">Hội thoại demo với {customerName}</h3>
+          <h3 className="font-semibold text-slate-900">Hội thoại với {selectedConversation?.customer_name || customerName}</h3>
+          {selectedConversation?.customer_phone && <p className="mt-1 text-xs text-slate-500">{selectedConversation.customer_phone}</p>}
         </div>
         <div className="flex-1 overflow-auto p-6 space-y-4">
-          <ChatMessage sender="customer" text={message} />
-          {sending && <ChatMessage sender="ai" text="Agentify đang gọi LLM, tìm sản phẩm trong KiotViet và kiểm tra tồn kho..." />}
-          {demoResult ? (
-            <ChatMessage sender="ai" text={demoResult.reply} />
-          ) : (
-            <ChatMessage sender="ai" text="Bấm “Gửi cho AI xử lý” để chạy luồng thật qua backend MVP." />
+          {storedMessages.length > 0 ? storedMessages.map((item) => (
+            <ChatMessage key={item.id} sender={item.sender === 'customer' ? 'customer' : 'ai'} text={item.content} />
+          )) : (
+            <ChatMessage sender="ai" text="Chưa có tin nhắn trong hội thoại này. Tin nhắn từ `/user_chat` sẽ hiện ở đây sau khi khách gửi." />
           )}
+          {sending && <ChatMessage sender="ai" text="Agentify đang gọi LLM, tìm sản phẩm trong KiotViet và kiểm tra tồn kho..." />}
         </div>
         <div className="p-4 border-t border-slate-200">
           <div className="mb-3 grid grid-cols-2 gap-3">
@@ -2200,13 +2631,105 @@ function ChatMessage({ sender, text }: any) {
           ? 'bg-blue-600 text-white'
           : 'bg-slate-100 text-slate-900'
       }`}>
-        <p className="text-sm">{text}</p>
+        <p className="whitespace-pre-line text-sm">{text}</p>
       </div>
     </div>
   );
 }
 
-function InvoiceCard({ order }: { order: ChatOrder }) {
+function LlmProductPanel({ products, onChoose }: { products: AgentChatResponse['recommended_products'], onChoose: (product: AgentChatResponse['recommended_products'][number]) => void }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 font-semibold text-slate-900">Sản phẩm Agentify gợi ý từ KiotViet</div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {products.map((product) => (
+          <button key={product.id} onClick={() => onChoose(product)} className="rounded-xl border border-slate-200 p-4 text-left hover:border-teal-300 hover:bg-teal-50">
+            <div className="font-semibold text-slate-950">{product.name}</div>
+            <div className="mt-1 text-sm text-slate-600">{product.reason}</div>
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <span className="text-slate-500">Còn {product.stock}</span>
+              <span className="font-bold text-teal-700">{product.price.toLocaleString('vi-VN')}đ</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RecommendationPanel({ recommendations, onChoose }: { recommendations: Recommendation[], onChoose: (product: Recommendation) => void }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 font-semibold text-slate-900">Top 5 sản phẩm đề xuất</div>
+      <div className="grid gap-3 md:grid-cols-5">
+        {recommendations.map((product) => (
+          <button key={product.name} onClick={() => onChoose(product)} className="overflow-hidden rounded-xl border border-slate-200 text-left hover:border-teal-400 hover:shadow-sm">
+            <img src={product.image} alt={product.name} className="h-28 w-full object-cover" />
+            <div className="p-3">
+              <div className="line-clamp-2 text-sm font-semibold text-slate-900">{product.name}</div>
+              <div className="mt-1 text-xs text-slate-500">{product.skin}</div>
+              <div className="mt-2 text-sm font-bold text-teal-700">{product.price.toLocaleString('vi-VN')}đ</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuickReplyGroup({ title, options, onChoose }: { title: string, options: string[], onChoose: (option: string) => void }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="mb-3 text-sm font-semibold text-slate-900">{title}</div>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button key={option} onClick={() => onChoose(option)} className="rounded-full border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-100">
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AppointmentCard({ appointment }: { appointment: { name: string, time: string, service: string } }) {
+  return (
+    <div className="flex justify-start">
+      <div className="w-full max-w-xl rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+            <Calendar className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Xác nhận lịch hẹn</div>
+            <div className="text-xl font-bold text-slate-950">{appointment.service}</div>
+          </div>
+        </div>
+        <div className="space-y-2 text-sm text-slate-700">
+          <div><strong>Khách hàng:</strong> {appointment.name}</div>
+          <div><strong>Thời gian:</strong> {appointment.time}</div>
+          <div><strong>Địa điểm:</strong> Lumi Beauty, tầng 2, 12 Nguyễn Trãi</div>
+          <div><strong>Chi phí:</strong> Miễn phí</div>
+        </div>
+        <div className="mt-4 rounded-xl bg-teal-50 p-3 text-sm text-teal-800">
+          Chuyên viên sẽ kiểm tra da, ghi nhận phản ứng và đề xuất hướng xử lý an toàn. Chị vui lòng mang sản phẩm đã dùng tới trung tâm.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FakeQrCode() {
+  return (
+    <div className="grid h-28 w-28 grid-cols-6 grid-rows-6 gap-1 rounded-lg bg-white p-2 ring-1 ring-slate-200">
+      {Array.from({ length: 36 }).map((_, index) => (
+        <div key={index} className={`${[0, 1, 2, 6, 12, 7, 14, 21, 28, 35, 34, 33, 27, 20, 13, 8, 10, 17, 19, 25, 30].includes(index) ? 'bg-slate-950' : 'bg-slate-100'} rounded-[2px]`} />
+      ))}
+    </div>
+  );
+}
+
+function InvoiceCard({ order, paymentMethod, eta, deliveryPreference, onPaymentChange }: { order: ChatOrder, paymentMethod?: PaymentMethod, eta?: string, deliveryPreference?: string | null, onPaymentChange?: (method: Exclude<PaymentMethod, null>) => void }) {
   const items = order.items || [];
   return (
     <div className="flex justify-start">
@@ -2230,13 +2753,43 @@ function InvoiceCard({ order }: { order: ChatOrder }) {
           ))}
         </div>
         <div className="mt-4 space-y-2 text-sm text-slate-600">
+          <div className="flex items-center gap-2"><Users className="h-4 w-4 text-teal-600" />{order.customer_name || 'Chưa có tên người nhận'}</div>
           <div className="flex items-center gap-2"><Phone className="h-4 w-4 text-teal-600" />{order.customer_phone || 'Chưa có số điện thoại'}</div>
           <div className="flex items-center gap-2"><MapPin className="h-4 w-4 text-teal-600" />{order.shipping_address || 'Chưa có địa chỉ giao hàng'}</div>
+          {deliveryPreference && <div className="flex items-center gap-2"><Clock className="h-4 w-4 text-teal-600" />Khung giờ nhận hàng: {deliveryPreference}</div>}
         </div>
         <div className="mt-4 flex items-center justify-between rounded-xl bg-teal-50 px-4 py-3">
           <span className="font-semibold text-teal-950">Tổng thanh toán</span>
           <span className="text-xl font-bold text-teal-700">{Number(order.total).toLocaleString('vi-VN')}đ</span>
         </div>
+        <div className="mt-4 rounded-xl border border-slate-200 p-4">
+          <div className="text-sm font-semibold text-slate-900">Hình thức thanh toán</div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <button
+              onClick={() => onPaymentChange?.('cod')}
+              className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${paymentMethod !== 'prepaid' ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 text-slate-700 hover:border-teal-200 hover:bg-teal-50'}`}
+            >
+              Thanh toán khi nhận hàng
+            </button>
+            <button
+              onClick={() => onPaymentChange?.('prepaid')}
+              className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${paymentMethod === 'prepaid' ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 text-slate-700 hover:border-teal-200 hover:bg-teal-50'}`}
+            >
+              Thanh toán trước bằng QR
+            </button>
+          </div>
+          {paymentMethod === 'prepaid' && (
+            <div className="mt-3 flex items-center gap-4">
+              <FakeQrCode />
+              <div className="text-sm text-slate-700">
+                <div className="font-semibold">QR thanh toán demo</div>
+                <div>Nội dung: AGENTIFY-{order.id}</div>
+                <div>Số tiền: {Number(order.total).toLocaleString('vi-VN')}đ</div>
+              </div>
+            </div>
+          )}
+        </div>
+        {eta && <div className="mt-3 text-sm font-semibold text-slate-700">Dự kiến giao hàng: {eta}</div>}
       </div>
     </div>
   );

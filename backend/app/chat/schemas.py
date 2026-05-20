@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class DemoMessageRequest(BaseModel):
+    conversation_id: int | None = None
     customer_name: str = Field(default="Khách demo", min_length=1)
     customer_phone: str | None = None
     message: str = Field(min_length=1)

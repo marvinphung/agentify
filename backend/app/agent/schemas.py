@@ -7,6 +7,7 @@ class AgentSlots(BaseModel):
     customer_name: str | None = None
     customer_phone: str | None = None
     shipping_address: str | None = None
+    payment_method: str | None = None
 
 
 class AgentPlan(BaseModel):
@@ -22,4 +23,3 @@ class ToolResult(BaseModel):
     status: str
     summary: str
     data: dict = Field(default_factory=dict)
-

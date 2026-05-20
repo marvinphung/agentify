@@ -53,9 +53,11 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
     if quantity_match:
         quantity = max(int(quantity_match.group(1)), 1)
 
-    phone = customer_phone or extract_phone(raw)
+    phone = extract_phone(raw) or customer_phone
 
     address = extract_address(raw)
+    parsed_name = extract_customer_name(raw)
+    payment_method = extract_payment_method(raw)
     product_query = extract_product_query(raw)
     tool_plan = ["search_products", "check_stock"]
     if intent == "buy_product":
@@ -68,9 +70,10 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
         slots=AgentSlots(
             product_query=product_query,
             quantity=quantity,
-            customer_name=customer_name,
+            customer_name=parsed_name or customer_name,
             customer_phone=phone,
             shipping_address=address,
+            payment_method=payment_method,
         ),
         tool_plan=tool_plan,
         source="rule",
@@ -78,10 +81,37 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
 
 
 def extract_address(message: str) -> str | None:
-    match = re.search(r"(?:giao\s*(?:tới|đến)|dia chi|địa chỉ)\s*[:,]?\s*(.+?)(?:,?\s*(?:sđt|sdt|số điện thoại|so dien thoai)\b|$)", message, flags=re.IGNORECASE)
+    match = re.search(
+        r"(?:giao\s*(?:tới|đến)|dia chi|địa chỉ)\s*[:,]?\s*(.+?)(?:[,.]?\s*(?:sđt|sdt|số điện thoại|so dien thoai|chị\s+là|chi\s+la|tên\s+(?:chị|em|mình)|ten\s+(?:chi|em|minh)|người\s+nhận|nguoi\s+nhan|thanh\s+toán|thanh\s+toan|trả\s+tiền|tra\s+tien)\b|$)",
+        message,
+        flags=re.IGNORECASE,
+    )
     if not match:
         return None
     return match.group(1).strip(" .,")
+
+
+def extract_customer_name(message: str) -> str | None:
+    patterns = [
+        r"(?:chị\s+là|chi\s+la|em\s+là|mình\s+là|minh\s+la)\s+([^,.]+)",
+        r"(?:tên\s+(?:chị|em|mình)|ten\s+(?:chi|em|minh)|người\s+nhận|nguoi\s+nhan)\s*[:,]?\s*([^,.]+)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, message, flags=re.IGNORECASE)
+        if match:
+            name = match.group(1).strip(" .,:")
+            if name:
+                return name
+    return None
+
+
+def extract_payment_method(message: str) -> str | None:
+    lower = message.lower()
+    if any(token in lower for token in ("qr", "chuyển khoản", "chuyen khoan", "trả trước", "tra truoc", "thanh toán trước", "thanh toan truoc")):
+        return "prepaid"
+    if any(token in lower for token in ("cod", "nhận hàng", "nhan hang", "trả sau", "tra sau", "thanh toán khi nhận", "thanh toan khi nhan")):
+        return "cod"
+    return None
 
 
 def extract_phone(message: str) -> str | None:

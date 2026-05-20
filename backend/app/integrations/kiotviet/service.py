@@ -25,6 +25,22 @@ COSMETIC_DEMO_PRODUCTS = [
     {"id": 900010, "code": "MP010", "name": "Gel trị mụn chấm điểm 15ml", "basePrice": 145000, "stock": 20},
     {"id": 900011, "code": "MP011", "name": "Dầu gội thảo mộc giảm gãy rụng 300ml", "basePrice": 175000, "stock": 14},
     {"id": 900012, "code": "MP012", "name": "Sữa tắm hương hoa anh đào 500ml", "basePrice": 155000, "stock": 26},
+    {"id": 900013, "code": "MP013", "name": "Kem chống nắng kiềm dầu SkinPure SPF50 50ml", "basePrice": 235000, "stock": 20},
+    {"id": 900014, "code": "MP014", "name": "Kem chống nắng nâng tông GlowCare SPF50 50ml", "basePrice": 295000, "stock": 18},
+    {"id": 900015, "code": "MP015", "name": "Kem chống nắng phục hồi CicaShield SPF50 45ml", "basePrice": 360000, "stock": 14},
+    {"id": 900016, "code": "MP016", "name": "Kem chống nắng cho da mụn AcneSafe SPF50 50ml", "basePrice": 330000, "stock": 16},
+    {"id": 900017, "code": "MP017", "name": "Kem chống nắng chống nước SunSport SPF50 60ml", "basePrice": 420000, "stock": 11},
+    {"id": 900018, "code": "MP018", "name": "Serum cấp ẩm Hyaluronic Acid 30ml", "basePrice": 275000, "stock": 21},
+    {"id": 900019, "code": "MP019", "name": "Tinh chất phục hồi rau má 30ml", "basePrice": 245000, "stock": 22},
+    {"id": 900020, "code": "MP020", "name": "Sữa rửa mặt dịu nhẹ cho da nhạy cảm 120ml", "basePrice": 185000, "stock": 19},
+    {"id": 900021, "code": "MP021", "name": "Kem dưỡng gel cho da dầu 50ml", "basePrice": 225000, "stock": 17},
+    {"id": 900022, "code": "MP022", "name": "Kem dưỡng ceramide cho da khô 50ml", "basePrice": 315000, "stock": 13},
+    {"id": 900023, "code": "MP023", "name": "Xịt khoáng làm dịu da 150ml", "basePrice": 135000, "stock": 28},
+    {"id": 900024, "code": "MP024", "name": "Mặt nạ phục hồi sau kích ứng 5 miếng", "basePrice": 180000, "stock": 25},
+    {"id": 900025, "code": "MP025", "name": "Nước hoa hồng không cồn 200ml", "basePrice": 205000, "stock": 18},
+    {"id": 900026, "code": "MP026", "name": "Tẩy da chết enzyme dịu nhẹ 80g", "basePrice": 255000, "stock": 12},
+    {"id": 900027, "code": "MP027", "name": "Kem chống nắng dạng sữa Aqua Light SPF50 40ml", "basePrice": 260000, "stock": 22},
+    {"id": 900028, "code": "MP028", "name": "Kem chống nắng vật lý Mineral Calm SPF50 50ml", "basePrice": 390000, "stock": 10},
 ]
 
 KIOTVIET_DEMO_CATEGORY_NAME = "Mỹ phẩm demo Agentify"

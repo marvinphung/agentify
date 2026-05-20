@@ -75,9 +75,8 @@ def create_draft_order(db: Session, *, conversation_id: int, customer_id: int, p
         customer_phone=slots.customer_phone,
         shipping_address=slots.shipping_address,
         items=[item],
-        raw_json={"source": plan.source, "real_kiotviet_order_enabled": get_settings().kiotviet_create_real_orders},
+        raw_json={"source": plan.source, "payment_method": slots.payment_method, "real_kiotviet_order_enabled": get_settings().kiotviet_create_real_orders},
     )
     db.add(order)
     db.flush()
     return ToolResult(type="order_create", status="success", summary=f"Đã tạo đơn nháp #{order.id} tổng {int(total):,}đ.", data={"order_id": order.id, "total": float(total)}), order
-
