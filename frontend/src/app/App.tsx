@@ -16,6 +16,7 @@ type ConversationItem = { id: number, customer_name: string, customer_phone?: st
 type StoredMessage = { id: number, sender: string, content: string, created_at: string };
 type PaymentMethod = 'cod' | 'prepaid' | null;
 type Recommendation = { name: string, price: number, fit: string, skin: string, image: string };
+type PendingProduct = { name: string, price?: number, stock?: number };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const sunscreenRecommendations: Recommendation[] = [
@@ -556,6 +557,7 @@ function UserChatScreen() {
   const [selectedProduct, setSelectedProduct] = useState<Recommendation | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
   const [pendingPurchaseIntent, setPendingPurchaseIntent] = useState<string | null>(null);
+  const [pendingProduct, setPendingProduct] = useState<PendingProduct | null>(null);
   const [pendingOrderMessage, setPendingOrderMessage] = useState<string | null>(null);
   const [deliveryPreference, setDeliveryPreference] = useState<string | null>(null);
   const [appointment, setAppointment] = useState<{ name: string, time: string, service: string } | null>(null);
@@ -581,6 +583,10 @@ function UserChatScreen() {
 
   const appendAi = (text: string) => setMessages((current) => [...current, { sender: 'ai', text }]);
   const appendCustomer = (text: string) => setMessages((current) => [...current, { sender: 'customer', text }]);
+  const buildOrderIntent = (product: PendingProduct | null, fallback: string | null) => {
+    if (product?.name) return `Đặt cho chị 1 ${product.name}`;
+    return fallback || '';
+  };
   const rememberConversation = (id: number | null | undefined) => {
     if (!id) return;
     setConversationId(id);
@@ -744,6 +750,10 @@ function UserChatScreen() {
       appendAi(result.reply);
       setLlmRecommendations(result.recommended_products);
       setLlmQuickReplies(result.quick_replies);
+      if (result.recommended_products.length > 0) {
+        const top = result.recommended_products[0];
+        setPendingProduct({ name: top.name, price: top.price, stock: top.stock });
+      }
       setActions(result.actions.map((summary, index) => ({
         type: index === 0 ? 'intent_detected' : 'llm_action',
         status: 'success',
@@ -806,6 +816,16 @@ function UserChatScreen() {
     appendAi(`Nếu chị ${customerName} muốn đặt sản phẩm này, chị nhắn "Đồng ý đặt" giúp em. Sau đó Lumi sẽ xin địa chỉ và khung giờ nhận hàng để lên đơn ạ. Em cảm ơn chị.`);
   };
 
+  const beginPendingOrder = () => {
+    const intent = buildOrderIntent(pendingProduct, pendingPurchaseIntent);
+    if (!intent) {
+      appendAi(`Dạ chị ${customerName}, chị muốn đặt sản phẩm nào ạ? Em cảm ơn chị.`);
+      return;
+    }
+    createDirectOrderFromMessage(intent);
+    setPendingPurchaseIntent(null);
+  };
+
   const sendMessage = async () => {
     const text = message.trim();
     if (!text) return;
@@ -817,9 +837,8 @@ function UserChatScreen() {
       createDirectOrderFromMessage(`${pendingOrderMessage}, giao tới ${text}`, true);
       return;
     }
-    if (pendingPurchaseIntent && (lower.includes('đồng ý') || lower.includes('dong y') || lower.includes('chốt') || lower.includes('chot') || lower.includes('ok'))) {
-      createDirectOrderFromMessage(pendingPurchaseIntent);
-      setPendingPurchaseIntent(null);
+    if ((pendingPurchaseIntent || pendingProduct) && (lower.includes('đặt mua') || lower.includes('mua ngay') || lower.includes('đồng ý') || lower.includes('dong y') || lower.includes('chốt') || lower.includes('chot') || lower.includes('ok'))) {
+      beginPendingOrder();
       return;
     }
     if (lower.includes('dat lich') || lower.includes('đặt lịch')) {
@@ -910,7 +929,17 @@ function UserChatScreen() {
               <ChatMessage key={index} sender={item.sender === 'customer' ? 'customer' : 'ai'} text={item.text} />
             ))}
             {loading && <ChatMessage sender="ai" text="Em đang kiểm tra sản phẩm và tồn kho cho chị..." />}
-            {llmRecommendations.length > 0 && <LlmProductPanel products={llmRecommendations} onChoose={(product) => setMessage(`Đặt cho chị 1 ${product.name}`)} />}
+            {llmRecommendations.length > 0 && (
+              <LlmProductPanel
+                products={llmRecommendations}
+                onChoose={(product) => {
+                  setPendingProduct({ name: product.name, price: product.price, stock: product.stock });
+                  setPendingPurchaseIntent(`Đặt cho chị 1 ${product.name}`);
+                  appendCustomer(product.name);
+                  appendAi(`Dạ chị ${customerName}, em có sẵn sản phẩm ${product.name} đang còn hàng ạ. Sản phẩm này phù hợp với nhu cầu chị vừa mô tả. Chị có muốn đặt mua không ạ? Em cảm ơn chị.`);
+                }}
+              />
+            )}
             {llmQuickReplies.length > 0 && (
               <QuickReplyGroup
                 title="Gợi ý trả lời nhanh"
@@ -2643,7 +2672,7 @@ function ChatMessage({ sender, text }: any) {
 function LlmProductPanel({ products, onChoose }: { products: AgentChatResponse['recommended_products'], onChoose: (product: AgentChatResponse['recommended_products'][number]) => void }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="mb-3 font-semibold text-slate-900">Sản phẩm Agentify gợi ý từ KiotViet</div>
+      <div className="mb-3 font-semibold text-slate-900">Sản phẩm Lumi Beauty gợi ý</div>
       <div className="grid gap-3 md:grid-cols-2">
         {products.map((product) => (
           <button key={product.id} onClick={() => onChoose(product)} className="rounded-xl border border-slate-200 p-4 text-left hover:border-teal-300 hover:bg-teal-50">
