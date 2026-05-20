@@ -36,17 +36,17 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: process.env.VITE_PROXY_API_TARGET || 'http://127.0.0.1:8000',
+        target: process.env.VITE_PROXY_API_TARGET || 'http://127.0.0.1:8763',
         changeOrigin: true,
         secure: false,
       },
       '/health': {
-        target: process.env.VITE_PROXY_API_TARGET || 'http://127.0.0.1:8000',
+        target: process.env.VITE_PROXY_API_TARGET || 'http://127.0.0.1:8763',
         changeOrigin: true,
         secure: false,
       },
       '/v1/api': {
-        target: process.env.VITE_PROXY_V1_API_TARGET || 'http://131.153.239.187:8125',
+        target: process.env.VITE_PROXY_V1_API_TARGET || 'http://131.153.239.187:8763',
         changeOrigin: true,
         secure: false,
       },

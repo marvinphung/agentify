@@ -146,12 +146,13 @@ POSTGRES_USER=agentify
 POSTGRES_PASSWORD=agentify
 POSTGRES_DB=agentify
 POSTGRES_HOST_PORT=5433
-API_PORT=8000
+API_PORT=8763
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,https://agentify-olive.vercel.app
 
 LLM_API_KEY=your_openrouter_or_llm_key
 LLM_BASE_URL=https://openrouter.ai/api/v1
 LLM_MODEL=your_model
-LLM_HTTP_REFERER=http://localhost:5173
+LLM_HTTP_REFERER=https://agentify-olive.vercel.app
 LLM_APP_TITLE=Agentify MVP
 
 KIOTVIET_RETAILER=your_retailer
@@ -170,7 +171,7 @@ docker compose up -d --build
 Backend chạy tại:
 
 ```text
-http://127.0.0.1:8000
+http://127.0.0.1:8763
 ```
 
 Khi backend start với database trống, hệ thống tự khởi tạo dữ liệu demo ban đầu:
@@ -184,7 +185,7 @@ Khi backend start với database trống, hệ thống tự khởi tạo dữ li
 Health check:
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8763/health
 ```
 
 ### 3. Chạy Frontend
@@ -213,7 +214,7 @@ Các route quan trọng:
 Gửi tin nhắn khách hàng qua agent chat:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/agent/chat \
+curl -X POST http://127.0.0.1:8763/api/agent/chat \
   -H 'Content-Type: application/json' \
   -d '{
     "customer_name": "Nguyễn Thảo",
@@ -225,7 +226,7 @@ curl -X POST http://127.0.0.1:8000/api/agent/chat \
 Tạo đơn nháp từ tin nhắn:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/channels/demo/messages \
+curl -X POST http://127.0.0.1:8763/api/channels/demo/messages \
   -H 'Content-Type: application/json' \
   -d '{
     "customer_name": "Nguyễn Thảo",
@@ -237,13 +238,13 @@ curl -X POST http://127.0.0.1:8000/api/channels/demo/messages \
 Lấy danh sách hội thoại:
 
 ```bash
-curl http://127.0.0.1:8000/api/conversations
+curl http://127.0.0.1:8763/api/conversations
 ```
 
 Lấy tin nhắn trong một hội thoại:
 
 ```bash
-curl http://127.0.0.1:8000/api/conversations/1/messages
+curl http://127.0.0.1:8763/api/conversations/1/messages
 ```
 
 ## KiotViet

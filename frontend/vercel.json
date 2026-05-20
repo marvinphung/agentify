@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://131.153.202.197:8124/api/:path*"
+      "destination": "http://131.153.239.187:8763/api/:path*"
     },
     {
       "source": "/health",
-      "destination": "http://131.153.202.197:8124/health"
+      "destination": "http://131.153.239.187:8763/health"
     },
     {
       "source": "/v1/api/:path*",
-      "destination": "http://131.153.239.187:8125/v1/api/:path*"
+      "destination": "http://131.153.239.187:8763/v1/api/:path*"
     },
     {
       "source": "/(.*)",
