@@ -145,7 +145,7 @@ Các biến thường dùng:
 POSTGRES_USER=agentify
 POSTGRES_PASSWORD=agentify
 POSTGRES_DB=agentify
-POSTGRES_HOST_PORT=5433
+POSTGRES_HOST_PORT=5441
 API_PORT=8763
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,https://agentify-olive.vercel.app
 
