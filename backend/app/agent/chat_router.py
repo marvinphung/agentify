@@ -29,11 +29,15 @@ Bạn phải trả JSON thuần:
 }
 
 Quy tắc:
-- Luôn xưng hô bằng đúng tên khách nếu có customer_name. Ví dụ: "Dạ chị Nguyễn Thảo..."
+- Luôn xưng hô bằng đúng tên khách nếu có customer_name, giữ nguyên họ tên đã nhập, không tự rút gọn tên. Ví dụ customer_name là "Hoàng Linh" thì viết "Dạ chị Hoàng Linh...", không viết "Dạ chị Linh...".
+- reply là tin nhắn chat thuần văn bản, không dùng markdown, không dùng **in đậm**, không dùng bullet markdown phức tạp.
 - Các phản hồi chăm sóc khách hàng nên kết thúc lịch sự bằng một câu cảm ơn ngắn khi phù hợp, ví dụ "Em cảm ơn chị."
 - Nếu khách hỏi trạng thái đơn mà thiếu mã đơn, có thể dùng số điện thoại nếu có; nếu không có, hỏi xin SĐT/mã đơn.
+- Luôn đọc conversation_history để hiểu ngữ cảnh trước đó. Nếu tin nhắn hiện tại là câu ngắn như "ok", "đặt mua ngay", "da mụn", "lấy loại đó", phải suy luận theo sản phẩm/nhu cầu vừa được nhắc trong hội thoại, không hỏi lại từ đầu.
+- Nếu active_product_focus có giá trị, phải giữ đúng nhóm sản phẩm đó khi tư vấn tiếp. Ví dụ active_product_focus là "tẩy da chết" và khách nói "da nhạy cảm" thì tư vấn tẩy da chết phù hợp da nhạy cảm, không chuyển sang sữa rửa mặt/toner/kem dưỡng trừ khi khách yêu cầu đổi nhóm sản phẩm.
 - Nếu khách hỏi đơn giao trễ, chưa nhận được hàng, đổi/trả hàng hoặc hoàn tiền và có order_history, phải mở đầu bằng: "Sau khi tra lịch sử mua hàng, em thấy chị [tên] mới có đơn #[id] ..." rồi nói trạng thái/sản phẩm trong đơn và hỏi thêm thông tin cần thiết.
 - Nếu khách hỏi tư vấn sản phẩm, hãy hỏi thêm loại da/ngân sách nếu thiếu và vẫn gợi ý nhóm sản phẩm phù hợp.
+- Nếu khách nói đang treatment, dùng retinol, AHA/BHA, peel, da đỏ rát, bong tróc hoặc rất nhạy cảm: tư vấn thận trọng, không khẳng định an toàn tuyệt đối. Nên khuyên thử vùng nhỏ, dùng tần suất thấp, tránh dùng cùng ngày với retinol/AHA/BHA/peel; nếu da đang đỏ rát/bong tróc thì tạm ngưng hoạt chất mạnh và mời chuyên viên kiểm tra.
 - Nếu khách phản hồi kích ứng, phải trấn an, khuyên tạm ngưng sản phẩm, hỏi thông tin đơn hàng/SĐT/họ tên để tra hồ sơ, và mời kiểm tra miễn phí. Không chẩn đoán bệnh.
 - Nếu khách muốn đặt hàng nhưng thiếu địa chỉ/SĐT, hỏi lại thông tin còn thiếu.
 """
@@ -45,10 +49,13 @@ async def agent_chat(payload: AgentChatRequest, db: Session = Depends(get_db)) -
     customer = _find_or_create_customer(db, payload)
     conversation = _find_or_create_conversation(db, payload.conversation_id, customer.id)
     db.add(Message(conversation_id=conversation.id, sender="customer", content=payload.message))
+    db.flush()
 
     products = _load_products(db)
     order_history = _load_order_history(db, payload.customer_phone)
-    llm_response = await _call_llm(payload, products, order_history)
+    conversation_history = _load_conversation_history(db, conversation.id)
+    active_product_focus = _resolve_active_product_focus(payload.message, conversation_history)
+    llm_response = await _call_llm(payload, products, order_history, conversation_history, active_product_focus)
     if llm_response is None:
         llm_response = _fallback_response(payload.message, payload.customer_name, payload.customer_phone, order_history)
     if _is_order_support_message(payload.message) and order_history:
@@ -64,7 +71,7 @@ async def agent_chat(payload: AgentChatRequest, db: Session = Depends(get_db)) -
     db.commit()
     db.refresh(conversation)
 
-    recommended = [] if intent in {"order_status", "appointment_booking"} else _recommend_products(products, llm_response.get("product_keywords") or [], payload.message)
+    recommended = [] if intent in {"order_status", "appointment_booking"} else _recommend_products(products, llm_response.get("product_keywords") or [], payload.message, active_product_focus)
     return AgentChatResponse(
         conversation_id=conversation.id,
         intent=intent,
@@ -151,13 +158,71 @@ def _load_order_history(db: Session, phone: str | None) -> list[dict]:
     ]
 
 
-async def _call_llm(payload: AgentChatRequest, products: list[ProductCache], order_history: list[dict]) -> dict | None:
+def _load_conversation_history(db: Session, conversation_id: int, limit: int = 16) -> list[dict]:
+    rows = list(
+        db.scalars(
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(desc(Message.created_at), desc(Message.id))
+            .limit(limit)
+        )
+    )
+    rows.reverse()
+    return [
+        {
+            "role": "assistant" if message.sender == "ai" else "user",
+            "content": message.content,
+        }
+        for message in rows
+    ]
+
+
+PRODUCT_FOCUS_PATTERNS = (
+    ("tẩy da chết", ("tay da chet", "peel", "enzyme")),
+    ("kem chống nắng", ("kem chong nang", "spf", "chong nang")),
+    ("serum", ("serum", "vitamin c", "retinol", "niacinamide")),
+    ("sữa rửa mặt", ("sua rua mat", "rua mat")),
+    ("mặt nạ", ("mat na", "mask")),
+    ("kem dưỡng", ("kem duong", "duong am", "cap am", "phuc hoi")),
+    ("toner", ("toner", "nuoc hoa hong")),
+    ("dầu gội", ("dau goi",)),
+)
+
+
+def _detect_product_focus(text: str) -> str | None:
+    normalized = normalize_text(text)
+    for label, patterns in PRODUCT_FOCUS_PATTERNS:
+        if any(pattern in normalized for pattern in patterns):
+            return label
+    return None
+
+
+def _resolve_active_product_focus(message: str, conversation_history: list[dict]) -> str | None:
+    explicit_focus = _detect_product_focus(message)
+    if explicit_focus:
+        return explicit_focus
+    for item in reversed(conversation_history):
+        focus = _detect_product_focus(str(item.get("content") or ""))
+        if focus:
+            return focus
+    return None
+
+
+def _product_matches_focus(product: ProductCache, focus: str | None) -> bool:
+    if not focus:
+        return True
+    return normalize_text(focus) in normalize_text(product.name)
+
+
+async def _call_llm(payload: AgentChatRequest, products: list[ProductCache], order_history: list[dict], conversation_history: list[dict], active_product_focus: str | None) -> dict | None:
     settings = get_settings()
     if not settings.llm_api_key:
         return None
+    focused_products = [product for product in products if _product_matches_focus(product, active_product_focus)]
+    context_products = focused_products or products
     product_context = [
         {"name": product.name, "price": float(product.base_price), "stock": product.stock}
-        for product in products[:50]
+        for product in context_products[:50]
     ]
     request_body = {
         "model": settings.llm_model,
@@ -170,6 +235,8 @@ async def _call_llm(payload: AgentChatRequest, products: list[ProductCache], ord
                         "customer_name": payload.customer_name,
                         "customer_phone": payload.customer_phone,
                         "message": payload.message,
+                        "conversation_history": conversation_history,
+                        "active_product_focus": active_product_focus,
                         "available_products": product_context,
                         "order_history": order_history,
                     },
@@ -196,10 +263,11 @@ async def _call_llm(payload: AgentChatRequest, products: list[ProductCache], ord
         return None
 
 
-def _recommend_products(products: list[ProductCache], keywords: list[str], message: str) -> list[AgentRecommendedProduct]:
-    query = normalize_text(" ".join(keywords) + " " + message)
+def _recommend_products(products: list[ProductCache], keywords: list[str], message: str, active_product_focus: str | None = None) -> list[AgentRecommendedProduct]:
+    query = normalize_text(" ".join(keywords) + " " + message + " " + (active_product_focus or ""))
+    candidate_products = [product for product in products if _product_matches_focus(product, active_product_focus)] or products
     scored: list[tuple[int, ProductCache]] = []
-    for product in products:
+    for product in candidate_products:
         name = normalize_text(product.name)
         score = 0
         for token in query.split():
@@ -214,6 +282,10 @@ def _recommend_products(products: list[ProductCache], keywords: list[str], messa
         if "sua rua mat" in query and "sua rua mat" in name:
             score += 30
         if "duong" in query and ("duong" in name or "cap am" in name):
+            score += 20
+        if "tay da chet" in query and "tay da chet" in name:
+            score += 30
+        if active_product_focus and _product_matches_focus(product, active_product_focus):
             score += 20
         if score:
             scored.append((score, product))
