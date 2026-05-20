@@ -32,3 +32,16 @@ def test_parse_order_address_name_and_payment_separately():
     assert plan.slots.shipping_address == "12 Nguyễn Trãi, Hà Nội"
     assert plan.slots.payment_method == "cod"
     assert "aqua light" in plan.slots.product_query.lower()
+
+
+def test_parse_order_keeps_profile_phone_and_strips_delivery_time():
+    plan = parse_message(
+        "Đặt cho chị 1 Serum cấp ẩm Hyaluronic Acid 30ml, giao tới 19 Lê Thanh Nghị, nhận vào giờ hành chính.",
+        customer_name="Vũ vv vd",
+        customer_phone="0000009999",
+    )
+
+    assert plan.intent == "buy_product"
+    assert plan.slots.customer_name == "Vũ vv vd"
+    assert plan.slots.customer_phone == "0000009999"
+    assert plan.slots.shipping_address == "19 Lê Thanh Nghị"

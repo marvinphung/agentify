@@ -16,7 +16,7 @@ Nhiệm vụ: trích xuất intent, slots và tool_plan từ tin nhắn khách.
 Slots cần trích xuất kỹ: product_query, quantity, customer_name, customer_phone, shipping_address, payment_method.
 payment_method chỉ nhận "cod" nếu khách muốn thanh toán khi nhận hàng/trả sau, hoặc "prepaid" nếu khách muốn chuyển khoản/QR/thanh toán trước.
 Nếu khách viết "Chị là/Tên chị/Người nhận là ..." thì đó là customer_name, không phải địa chỉ.
-Nếu khách viết "giao tới/địa chỉ ..." thì shipping_address chỉ là phần địa chỉ, dừng trước số điện thoại, tên người nhận hoặc hình thức thanh toán.
+Nếu khách viết "giao tới/địa chỉ ..." thì shipping_address chỉ là phần địa chỉ, dừng trước số điện thoại, tên người nhận, khung giờ nhận hàng hoặc hình thức thanh toán.
 Nếu thiếu số điện thoại hoặc địa chỉ khi đặt hàng, vẫn tìm/check hàng nhưng dùng ask_clarification thay vì tạo đơn.
 """
 

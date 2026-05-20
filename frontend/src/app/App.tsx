@@ -17,6 +17,7 @@ type StoredMessage = { id: number, sender: string, content: string, created_at: 
 type PaymentMethod = 'cod' | 'prepaid' | null;
 type Recommendation = { name: string, price: number, fit: string, skin: string, image: string };
 type PendingProduct = { name: string, price?: number, stock?: number };
+type PendingOrderDraft = { intent: string, shippingAddress: string, deliveryPreference: string | null };
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const sunscreenRecommendations: Recommendation[] = [
@@ -556,9 +557,11 @@ function UserChatScreen() {
   const [order, setOrder] = useState<ChatOrder | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Recommendation | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
   const [pendingPurchaseIntent, setPendingPurchaseIntent] = useState<string | null>(null);
   const [pendingProduct, setPendingProduct] = useState<PendingProduct | null>(null);
   const [pendingOrderMessage, setPendingOrderMessage] = useState<string | null>(null);
+  const [pendingOrderDraft, setPendingOrderDraft] = useState<PendingOrderDraft | null>(null);
   const [deliveryPreference, setDeliveryPreference] = useState<string | null>(null);
   const [appointment, setAppointment] = useState<{ name: string, time: string, service: string } | null>(null);
   const [irritationVerified, setIrritationVerified] = useState(false);
@@ -586,6 +589,17 @@ function UserChatScreen() {
   const buildOrderIntent = (product: PendingProduct | null, fallback: string | null) => {
     if (product?.name) return `Đặt cho chị 1 ${product.name}`;
     return fallback || '';
+  };
+  const parseDeliveryDetails = (text: string) => {
+    const cleaned = text.trim().replace(/\s+/g, ' ');
+    const withoutPrefix = cleaned.replace(/^(?:giao\s*(?:tới|đến)|địa chỉ|dia chi)\s*[:,]?\s*/i, '');
+    const marker = withoutPrefix.match(/(?:,\s*)?(nhận\s*(?:hàng)?\s*(?:vào|lúc|giờ)|nhan\s*(?:hang)?\s*(?:vao|luc|gio)|giờ\s+nhận|gio\s+nhan|giờ\s+hành\s+chính|gio\s+hanh\s+chinh).*/i);
+    if (!marker || marker.index === undefined) {
+      return { shippingAddress: withoutPrefix.replace(/[,.]\s*$/, '').trim(), deliveryPreference: null };
+    }
+    const shippingAddress = withoutPrefix.slice(0, marker.index).replace(/[,.]\s*$/, '').trim();
+    const deliveryPreference = withoutPrefix.slice(marker.index).replace(/^,\s*/, '').trim();
+    return { shippingAddress, deliveryPreference };
   };
   const rememberConversation = (id: number | null | undefined) => {
     if (!id) return;
@@ -776,8 +790,9 @@ function UserChatScreen() {
   const createDirectOrderFromMessage = async (text: string, forceCreate = false) => {
     if (!forceCreate && !messageHasShippingInfo(text)) {
       setPendingOrderMessage(text);
+      setPendingOrderDraft(null);
       setDeliveryPreference(null);
-    appendAi(`Dạ chị ${customerName}, Lumi đã có tên và số điện thoại của chị rồi. Chị cho em xin địa chỉ giao hàng và khung giờ chị có thể nhận hàng ạ. Em cảm ơn chị.`);
+      appendAi(`Dạ chị ${customerName}, Lumi đã có tên và số điện thoại của chị rồi. Chị cho em xin địa chỉ giao hàng và khung giờ chị có thể nhận hàng ạ. Em cảm ơn chị.`);
       return;
     }
     setLoading(true);
@@ -798,9 +813,14 @@ function UserChatScreen() {
       rememberConversation(result.conversation_id);
       appendAi(result.reply);
       setOrder(result.order);
-      setPaymentMethod('cod');
+      setPaymentMethod(null);
+      setPaymentConfirmed(false);
       setPendingOrderMessage(null);
+      setPendingOrderDraft(null);
       setActions(result.actions);
+      if (result.order) {
+        appendAi(`Dạ chị ${customerName}, em đã tạo hóa đơn tạm tính trong khung chat. Chị chọn giúp em thanh toán khi nhận hàng hoặc thanh toán trước bằng QR nhé. Em cảm ơn chị.`);
+      }
     } catch (err) {
       const fallback = err instanceof Error ? err.message : 'Không tạo được đơn.';
       setError(fallback);
@@ -826,15 +846,58 @@ function UserChatScreen() {
     setPendingPurchaseIntent(null);
   };
 
+  const confirmPendingOrder = () => {
+    if (!pendingOrderDraft) return;
+    createDirectOrderFromMessage(`${pendingOrderDraft.intent}, giao tới ${pendingOrderDraft.shippingAddress}`, true);
+  };
+
+  const choosePaymentFromText = (text: string) => {
+    if (!order) return false;
+    const lower = text.toLowerCase();
+    if (lower.includes('chuyển rồi') || lower.includes('chuyen roi') || lower.includes('đã chuyển') || lower.includes('da chuyen') || lower.includes('đã thanh toán') || lower.includes('da thanh toan')) {
+      setPaymentMethod('prepaid');
+      setPaymentConfirmed(true);
+      appendAi(`Dạ em đã nhận được thanh toán cho đơn #${order.id}. Em gửi lại hóa đơn đã thanh toán trong khung chat. Đơn dự kiến giao trong 2-3 ngày làm việc. Lumi cảm ơn chị ${customerName}, chị còn quan tâm thêm sản phẩm nào khác không ạ?`);
+      return true;
+    }
+    if (lower.includes('qr') || lower.includes('chuyển khoản') || lower.includes('chuyen khoan') || lower.includes('thanh toán ngay') || lower.includes('thanh toan ngay') || lower.includes('trả trước') || lower.includes('tra truoc')) {
+      setPaymentMethod('prepaid');
+      setPaymentConfirmed(false);
+      appendAi(`Dạ em đã cập nhật đơn #${order.id} sang thanh toán trước và gửi QR trong hóa đơn ạ. Sau khi chị chuyển khoản, chị nhắn "chị đã chuyển rồi" để em xác nhận nhé. Em cảm ơn chị.`);
+      return true;
+    }
+    if (lower.includes('cod') || lower.includes('thanh toán khi nhận') || lower.includes('thanh toan khi nhan') || lower.includes('trả sau') || lower.includes('tra sau')) {
+      setPaymentMethod('cod');
+      setPaymentConfirmed(false);
+      appendAi(`Dạ em đã cập nhật đơn #${order.id} thanh toán khi nhận hàng. Đơn dự kiến giao trong 2-3 ngày làm việc. Lumi cảm ơn chị ${customerName}, chị còn quan tâm thêm sản phẩm nào khác không ạ?`);
+      return true;
+    }
+    return false;
+  };
+
   const sendMessage = async () => {
     const text = message.trim();
     if (!text) return;
     const lower = text.toLowerCase();
     setMessage('');
     appendCustomer(text);
+    if (choosePaymentFromText(text)) {
+      return;
+    }
+    if (pendingOrderDraft && (lower.includes('xác nhận') || lower.includes('xac nhan') || lower.includes('đồng ý') || lower.includes('dong y') || lower.includes('đúng') || lower.includes('dung') || lower.includes('ok'))) {
+      confirmPendingOrder();
+      return;
+    }
     if (pendingOrderMessage) {
-      setDeliveryPreference(text);
-      createDirectOrderFromMessage(`${pendingOrderMessage}, giao tới ${text}`, true);
+      const details = parseDeliveryDetails(text);
+      if (!details.shippingAddress) {
+        appendAi(`Dạ chị ${customerName}, chị gửi giúp em địa chỉ giao hàng cụ thể để Lumi lên đơn nhé. Em cảm ơn chị.`);
+        return;
+      }
+      setDeliveryPreference(details.deliveryPreference);
+      setPendingOrderDraft({ intent: pendingOrderMessage, shippingAddress: details.shippingAddress, deliveryPreference: details.deliveryPreference });
+      setPendingOrderMessage(null);
+      appendAi(`Dạ chị ${customerName}, em xác nhận lại thông tin đơn hàng:\n- Sản phẩm: ${pendingProduct?.name || pendingOrderMessage.replace(/^Đặt cho chị 1\s*/i, '')}\n- Người nhận: ${customerName}\n- Số điện thoại: ${customerPhone}\n- Địa chỉ: ${details.shippingAddress}${details.deliveryPreference ? `\n- Khung giờ nhận hàng: ${details.deliveryPreference}` : ''}\nChị nhắn "Xác nhận đơn hàng" để em tạo hóa đơn tạm tính nhé. Em cảm ơn chị.`);
       return;
     }
     if ((pendingPurchaseIntent || pendingProduct) && (lower.includes('đặt mua') || lower.includes('mua ngay') || lower.includes('đồng ý') || lower.includes('dong y') || lower.includes('chốt') || lower.includes('chot') || lower.includes('ok'))) {
@@ -993,14 +1056,16 @@ function UserChatScreen() {
               <InvoiceCard
                 order={order}
                 paymentMethod={paymentMethod}
+                paymentConfirmed={paymentConfirmed}
                 eta="2-3 ngày làm việc"
                 deliveryPreference={deliveryPreference}
                 onPaymentChange={(method) => {
                   setPaymentMethod(method);
+                  setPaymentConfirmed(false);
                   appendCustomer(method === 'prepaid' ? 'Chị chọn thanh toán trước bằng QR' : 'Chị chọn thanh toán khi nhận hàng');
                   appendAi(method === 'prepaid'
-                    ? 'Dạ em đã cập nhật hóa đơn sang thanh toán trước và gửi QR trong khung chat ạ. Em cảm ơn chị.'
-                    : 'Dạ em đã cập nhật hóa đơn sang thanh toán khi nhận hàng ạ. Em cảm ơn chị.');
+                    ? `Dạ em đã cập nhật đơn #${order.id} sang thanh toán trước và gửi QR trong hóa đơn ạ. Sau khi chị chuyển khoản, chị nhắn "chị đã chuyển rồi" để em xác nhận nhé. Em cảm ơn chị.`
+                    : `Dạ em đã cập nhật đơn #${order.id} thanh toán khi nhận hàng. Đơn dự kiến giao trong 2-3 ngày làm việc. Lumi cảm ơn chị ${customerName}, chị còn quan tâm thêm sản phẩm nào khác không ạ.`);
                 }}
               />
             )}
@@ -2761,17 +2826,18 @@ function FakeQrCode() {
   );
 }
 
-function InvoiceCard({ order, paymentMethod, eta, deliveryPreference, onPaymentChange }: { order: ChatOrder, paymentMethod?: PaymentMethod, eta?: string, deliveryPreference?: string | null, onPaymentChange?: (method: Exclude<PaymentMethod, null>) => void }) {
+function InvoiceCard({ order, paymentMethod, paymentConfirmed = false, eta, deliveryPreference, onPaymentChange }: { order: ChatOrder, paymentMethod?: PaymentMethod, paymentConfirmed?: boolean, eta?: string, deliveryPreference?: string | null, onPaymentChange?: (method: Exclude<PaymentMethod, null>) => void }) {
   const items = order.items || [];
+  const paymentLabel = paymentConfirmed ? 'Đã thanh toán' : paymentMethod === 'cod' ? 'Thanh toán khi nhận' : paymentMethod === 'prepaid' ? 'Chờ chuyển khoản' : 'Chờ chọn thanh toán';
   return (
     <div className="flex justify-start">
       <div className="w-full max-w-xl rounded-2xl border border-teal-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-start justify-between gap-4">
           <div>
-            <div className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Hóa đơn tạm tính</div>
+            <div className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">{paymentConfirmed ? 'Hóa đơn đã thanh toán' : 'Hóa đơn tạm tính'}</div>
             <div className="mt-1 text-xl font-bold text-slate-950">Đơn #{order.id}</div>
           </div>
-          <div className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">Chờ xác nhận</div>
+          <div className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">{paymentLabel}</div>
         </div>
         <div className="space-y-3 border-y border-slate-200 py-4">
           {items.map((item, index) => (
@@ -2799,7 +2865,7 @@ function InvoiceCard({ order, paymentMethod, eta, deliveryPreference, onPaymentC
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <button
               onClick={() => onPaymentChange?.('cod')}
-              className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${paymentMethod !== 'prepaid' ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 text-slate-700 hover:border-teal-200 hover:bg-teal-50'}`}
+              className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold ${paymentMethod === 'cod' ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-200 text-slate-700 hover:border-teal-200 hover:bg-teal-50'}`}
             >
               Thanh toán khi nhận hàng
             </button>
@@ -2818,6 +2884,11 @@ function InvoiceCard({ order, paymentMethod, eta, deliveryPreference, onPaymentC
                 <div>Nội dung: AGENTIFY-{order.id}</div>
                 <div>Số tiền: {Number(order.total).toLocaleString('vi-VN')}đ</div>
               </div>
+            </div>
+          )}
+          {paymentConfirmed && (
+            <div className="mt-3 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800">
+              Đã nhận thanh toán. Cảm ơn chị.
             </div>
           )}
         </div>

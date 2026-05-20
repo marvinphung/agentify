@@ -82,7 +82,7 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
 
 def extract_address(message: str) -> str | None:
     match = re.search(
-        r"(?:giao\s*(?:tới|đến)|dia chi|địa chỉ)\s*[:,]?\s*(.+?)(?:[,.]?\s*(?:sđt|sdt|số điện thoại|so dien thoai|chị\s+là|chi\s+la|tên\s+(?:chị|em|mình)|ten\s+(?:chi|em|minh)|người\s+nhận|nguoi\s+nhan|thanh\s+toán|thanh\s+toan|trả\s+tiền|tra\s+tien)\b|$)",
+        r"(?:giao\s*(?:tới|đến)|dia chi|địa chỉ)\s*[:,]?\s*(.+?)(?:[,.]?\s*(?:sđt|sdt|số điện thoại|so dien thoai|chị\s+là|chi\s+la|tên\s+(?:chị|em|mình)|ten\s+(?:chi|em|minh)|người\s+nhận|nguoi\s+nhan|thanh\s+toán|thanh\s+toan|trả\s+tiền|tra\s+tien|nhận\s*(?:hàng)?\s*(?:vào|lúc|giờ)|nhan\s*(?:hang)?\s*(?:vao|luc|gio)|giờ\s+nhận|gio\s+nhan)\b|$)",
         message,
         flags=re.IGNORECASE,
     )
