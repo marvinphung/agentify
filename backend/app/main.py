@@ -7,6 +7,7 @@ from app.agent.chat_router import router as agent_router
 from app.chat.router import router as chat_router
 from app.config import get_settings
 from app.database import SessionLocal, create_tables
+from app.demo_seed import seed_demo_data
 from app.errors import AppError, app_error_handler
 from app.integrations.kiotviet.router import router as kiotviet_router
 from app.orders.router import router as orders_router
@@ -18,6 +19,7 @@ async def lifespan(_: FastAPI):
     create_tables()
     with SessionLocal() as db:
         ensure_default_workspace(db)
+        seed_demo_data(db)
     yield
 
 

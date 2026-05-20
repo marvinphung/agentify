@@ -173,6 +173,14 @@ Backend chạy tại:
 http://127.0.0.1:8000
 ```
 
+Khi backend start với database trống, hệ thống tự khởi tạo dữ liệu demo ban đầu:
+
+- Workspace mặc định.
+- Danh sách sản phẩm mỹ phẩm demo.
+- Khách hàng mẫu.
+- Hội thoại mẫu.
+- Đơn nháp mẫu để demo tra lịch sử đơn hàng.
+
 Health check:
 
 ```bash
