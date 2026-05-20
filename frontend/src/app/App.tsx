@@ -567,8 +567,11 @@ function UserChatScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const loadProducts = async () => {
-    await apiRequest('/api/demo/create-cosmetics-in-kiotviet', { method: 'POST' });
-    const rows = await apiRequest<ProductItem[]>('/api/kiotviet/products');
+    let rows = await apiRequest<ProductItem[]>('/api/kiotviet/products');
+    if (rows.length === 0) {
+      await apiRequest('/api/demo/seed-cosmetics', { method: 'POST' });
+      rows = await apiRequest<ProductItem[]>('/api/kiotviet/products');
+    }
     setProducts(rows.filter((product) => !product.name.toLowerCase().includes('bánh')).slice(0, 28));
   };
 
