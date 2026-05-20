@@ -17,7 +17,7 @@ type StoredMessage = { id: number, sender: string, content: string, created_at: 
 type PaymentMethod = 'cod' | 'prepaid' | null;
 type Recommendation = { name: string, price: number, fit: string, skin: string, image: string };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const sunscreenRecommendations: Recommendation[] = [
   { name: 'Kem chống nắng kiềm dầu SkinPure SPF50 50ml', price: 235000, fit: 'Phù hợp da dầu, cần finish ráo nhẹ', skin: 'Da dầu', image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80' },
   { name: 'Kem chống nắng cho da mụn AcneSafe SPF50 50ml', price: 330000, fit: 'Ưu tiên da mụn, dễ bí tắc, cần công thức nhẹ', skin: 'Da mụn', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?auto=format&fit=crop&w=600&q=80' },
