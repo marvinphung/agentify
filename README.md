@@ -136,11 +136,13 @@ Infrastructure:
 
 ## Chạy Local
 
-### 1. Chuẩn Bị `.env`
+### 1. Chuẩn Bị Env
 
-Tạo file `.env` ở root repo. Không commit file này lên GitHub.
+Backend dùng file `backend/.env`. Frontend dùng file `frontend/.env`.
 
-Các biến thường dùng:
+Không commit các file `.env` lên GitHub.
+
+Backend env thường dùng:
 
 ```env
 POSTGRES_USER=agentify
@@ -159,6 +161,14 @@ LLM_APP_TITLE=Agentify MVP
 KIOTVIET_RETAILER=your_retailer
 KIOTVIET_CLIENT_ID=your_client_id
 KIOTVIET_CLIENT_SECRET=your_client_secret
+```
+
+Frontend env thường dùng:
+
+```env
+VITE_API_BASE_URL=
+VITE_PROXY_API_TARGET=http://127.0.0.1:8763
+VITE_PROXY_V1_API_TARGET=http://131.153.239.187:8763
 ```
 
 ### 2. Chạy Backend Và PostgreSQL

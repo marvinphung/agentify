@@ -26,7 +26,7 @@ services:
     container_name: agentify-api
     restart: unless-stopped
     env_file:
-      - ../.env
+      - .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-agentify}:${POSTGRES_PASSWORD:-agentify}@postgres:5432/${POSTGRES_DB:-agentify}
       API_HOST: 0.0.0.0
