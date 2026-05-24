@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     zalo_redirect_uri: str = ""
     zalo_callback_success_redirect: str = "http://localhost:5173/?zalo_connected=1"
     zalo_callback_error_redirect: str = "http://localhost:5173/?zalo_connected=0"
+    zalo_site_verification: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

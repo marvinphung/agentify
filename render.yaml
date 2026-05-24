@@ -35,3 +35,5 @@ services:
         value: https://agentify-olive.vercel.app/?zalo_connected=1
       - key: ZALO_CALLBACK_ERROR_REDIRECT
         value: https://agentify-olive.vercel.app/?zalo_connected=0
+      - key: ZALO_SITE_VERIFICATION
+        value: JU-k9StGBIqJqQWMuyPoJJktrXRNmGDFCJCt

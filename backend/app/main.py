@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from app.agent.chat_router import router as agent_router
 from app.chat.router import router as chat_router
@@ -44,6 +45,23 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    def root() -> str:
+        meta = ""
+        if settings.zalo_site_verification:
+            meta = f'<meta name="zalo-platform-site-verification" content="{settings.zalo_site_verification}" />'
+        return (
+            "<!doctype html>"
+            '<html lang="vi">'
+            "<head>"
+            '<meta charset="utf-8" />'
+            f"{meta}"
+            "<title>Agentify API</title>"
+            "</head>"
+            "<body>Agentify API is running.</body>"
+            "</html>"
+        )
 
     return app
 
