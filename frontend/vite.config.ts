@@ -46,7 +46,7 @@ export default defineConfig({
         secure: false,
       },
       '/v1/api': {
-        target: process.env.VITE_PROXY_V1_API_TARGET || 'http://131.153.239.187:8763',
+        target: process.env.VITE_PROXY_V1_API_TARGET || 'https://api.agentify.io.vn',
         changeOrigin: true,
         secure: false,
       },
