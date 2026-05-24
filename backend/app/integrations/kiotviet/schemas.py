@@ -16,6 +16,12 @@ class KiotVietConnectResponse(BaseModel):
     sample_product_count: int
 
 
+class KiotVietConnectFromEnvResponse(BaseModel):
+    status: str
+    retailer: str
+    sample_product_count: int
+
+
 class KiotVietStatusResponse(BaseModel):
     status: str
     retailer: str | None = None

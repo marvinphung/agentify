@@ -5,13 +5,14 @@ from app.database import get_db
 from app.integrations.kiotviet.schemas import (
     KiotVietConnectRequest,
     KiotVietConnectResponse,
+    KiotVietConnectFromEnvResponse,
     KiotVietStatusResponse,
     ProductResponse,
     CreateKiotVietCosmeticsResponse,
     SeedProductsResponse,
     SyncProductsResponse,
 )
-from app.integrations.kiotviet.service import connect_kiotviet, create_cosmetic_products_in_kiotviet, get_integration, list_cached_or_remote_products, seed_cosmetic_products, sync_products
+from app.integrations.kiotviet.service import connect_kiotviet, connect_kiotviet_from_env, create_cosmetic_products_in_kiotviet, get_integration, list_cached_or_remote_products, seed_cosmetic_products, sync_products
 
 router = APIRouter(prefix="/api", tags=["kiotviet"])
 
@@ -20,6 +21,12 @@ router = APIRouter(prefix="/api", tags=["kiotviet"])
 async def connect(payload: KiotVietConnectRequest, db: Session = Depends(get_db)) -> KiotVietConnectResponse:
     integration, sample_count = await connect_kiotviet(db, payload)
     return KiotVietConnectResponse(status=integration.status, retailer=integration.retailer, sample_product_count=sample_count)
+
+
+@router.post("/integrations/kiotviet/connect/env", response_model=KiotVietConnectFromEnvResponse)
+async def connect_from_env(db: Session = Depends(get_db)) -> KiotVietConnectFromEnvResponse:
+    integration, sample_count = await connect_kiotviet_from_env(db)
+    return KiotVietConnectFromEnvResponse(status=integration.status, retailer=integration.retailer, sample_product_count=sample_count)
 
 
 @router.get("/integrations/kiotviet/status", response_model=KiotVietStatusResponse)

@@ -35,7 +35,7 @@ def _state_for_workspace() -> str:
 
 def get_status(db: Session, workspace_id: int = DEFAULT_WORKSPACE_ID) -> dict[str, Any]:
     integration = get_integration(db, workspace_id=workspace_id)
-    if not integration or integration.status != "connected":
+    if not integration or integration.status not in {"connected", "demo"}:
         return {"status": "disconnected"}
 
     return {
@@ -110,6 +110,21 @@ def save_manual_access_token(db: Session, access_token: str, *, workspace_id: in
     integration.token_expires_at = datetime.now(UTC) + timedelta(days=365)
     integration.last_connected_at = datetime.now(UTC)
     return integration
+
+
+def save_demo_connection(db: Session, *, workspace_id: int = DEFAULT_WORKSPACE_ID) -> ZaloIntegration:
+    integration = _ensure_integration(db, workspace_id=workspace_id)
+    integration.oa_id = "demo-oa"
+    integration.access_token = None
+    integration.status = "demo"
+    integration.token_expires_at = datetime.now(UTC) + timedelta(days=30)
+    integration.last_connected_at = datetime.now(UTC)
+    return integration
+
+
+def is_demo_connection(db: Session, workspace_id: int = DEFAULT_WORKSPACE_ID) -> bool:
+    integration = get_integration(db, workspace_id=workspace_id)
+    return bool(integration and integration.status == "demo")
 
 
 async def get_access_token(db: Session, workspace_id: int = DEFAULT_WORKSPACE_ID) -> str | None:

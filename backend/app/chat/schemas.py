@@ -20,6 +20,14 @@ class ActionResponse(BaseModel):
     summary: str
 
 
+class ProductRecommendationResponse(BaseModel):
+    id: int
+    name: str
+    price: float
+    stock: int
+    reason: str
+
+
 class OrderSummary(BaseModel):
     id: int
     kiotviet_order_code: str | None = None
@@ -37,6 +45,8 @@ class DemoMessageResponse(BaseModel):
     actions: list[ActionResponse]
     order: OrderSummary | None = None
     invoice: InvoicePayload | None = None
+    recommended_products: list[ProductRecommendationResponse] = Field(default_factory=list)
+    quick_replies: list[str] = Field(default_factory=list)
     ui_events: list[dict[str, str]] = Field(default_factory=list)
 
 

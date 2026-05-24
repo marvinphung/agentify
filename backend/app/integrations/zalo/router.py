@@ -7,11 +7,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent.service import process_customer_message
-from app.chat.schemas import ActionResponse
+from app.chat.schemas import ActionResponse, ProductRecommendationResponse
 from app.config import get_settings
 from app.integrations.zalo.schemas import (
     ZaloConnectStartResponse,
     ZaloConnectionStatusResponse,
+    ZaloDemoConnectResponse,
     ZaloManualConnectRequest,
     ZaloManualConnectResponse,
     ZaloMessageRequest,
@@ -21,6 +22,8 @@ from app.integrations.zalo.service import (
     build_authorize_url,
     exchange_code_for_access_token,
     get_status,
+    is_demo_connection,
+    save_demo_connection,
     save_manual_access_token,
     send_message,
 )
@@ -55,6 +58,18 @@ async def connect_manual(payload: ZaloManualConnectRequest, db: Session = Depend
     db.commit()
     db.refresh(integration)
     return ZaloManualConnectResponse(status=integration.status, oa_id=integration.oa_id)
+
+
+@router.post("/connect/demo", response_model=ZaloDemoConnectResponse)
+async def connect_demo(db: Session = Depends(get_db)) -> ZaloDemoConnectResponse:
+    integration = save_demo_connection(db, workspace_id=DEFAULT_WORKSPACE_ID)
+    db.commit()
+    db.refresh(integration)
+    return ZaloDemoConnectResponse(
+        status=integration.status,
+        oa_id=integration.oa_id,
+        message="Đã bật Zalo Demo Mode. OAuth thật vẫn có thể dùng sau khi OA được xác thực.",
+    )
 
 
 @router.get("/connect/callback", response_class=RedirectResponse)
@@ -114,8 +129,32 @@ async def receive_zalo_message(payload: ZaloMessageRequest, db: Session = Depend
         reply=reply,
         invoice=invoice_payload.model_dump() if invoice_payload else None,
         actions=[ActionResponse(type=action.type, status=action.status, summary=action.summary) for action in actions],
+        recommended_products=_recommendations_from_actions(actions),
+        quick_replies=_quick_replies_from_actions(actions, has_invoice=invoice_payload is not None),
         ui_events=ui_payload,
     )
+
+
+def _recommendations_from_actions(actions: list) -> list[ProductRecommendationResponse]:
+    for action in actions:
+        if action.type == "product_recommendation" and action.status == "success":
+            return [ProductRecommendationResponse(**product) for product in action.data.get("products", [])[:5]]
+    return []
+
+
+def _quick_replies_from_actions(actions: list, *, has_invoice: bool) -> list[str]:
+    if has_invoice:
+        return ["Kiểm tra trạng thái đơn", "Mua thêm sản phẩm", "Gặp nhân viên"]
+    if any(action.type == "order_confirmation_pending" for action in actions):
+        return ["Đúng rồi", "Sửa số điện thoại", "Đổi địa chỉ"]
+    if any(action.type == "product_recommendation" and action.status == "success" for action in actions):
+        return ["Da dầu", "Da mụn", "Da khô", "Da nhạy cảm"]
+    if any(action.type == "order_support" for action in actions):
+        return ["Gửi mã đơn", "Gửi SĐT mua hàng", "Gặp nhân viên"]
+    for action in actions:
+        if action.type == "reply" and action.data.get("quick_replies"):
+            return list(action.data["quick_replies"])[:4]
+    return []
 
 
 def _append_invoice_send_event(
@@ -140,6 +179,14 @@ async def _schedule_invoice_send_if_ready(
     if not invoice_payload:
         return
     if not channel_user_id:
+        if is_demo_connection(db, workspace_id=DEFAULT_WORKSPACE_ID):
+            _append_invoice_send_event(
+                ui_events,
+                status="success",
+                title="Đã gửi hóa đơn demo qua Zalo",
+                detail=f"Đơn #{order_id}: mô phỏng gửi hóa đơn trong Zalo Demo Mode.",
+            )
+            return
         _append_invoice_send_event(
             ui_events,
             status="warn",

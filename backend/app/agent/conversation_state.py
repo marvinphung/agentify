@@ -11,6 +11,9 @@ from app.models import Message
 
 
 def resolve_pending_order_intent(db: Session, conversation_id: int, *, current: AgentPlan, current_message: str, limit: int = 8) -> AgentPlan:
+    if current.intent in {"product_consultation", "ask_stock"}:
+        return current
+
     history = list(
         db.scalars(
             select(Message)

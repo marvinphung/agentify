@@ -16,6 +16,9 @@ class Settings(BaseSettings):
 
     kiotviet_token_url: str = "https://id.kiotviet.vn/connect/token"
     kiotviet_api_base_url: str = "https://public.kiotapi.com"
+    kiotviet_retailer: str = ""
+    kiotviet_client_id: str = ""
+    kiotviet_client_secret: str = ""
     kiotviet_create_real_orders: bool = False
     demo_stock_fallback: int = 0
 

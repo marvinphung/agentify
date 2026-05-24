@@ -3,6 +3,7 @@ import re
 from app.agent.schemas import AgentPlan, AgentSlots
 BUY_WORDS = ("mua", "lấy", "lay", "đặt", "dat", "ship", "giao", "lên đơn", "len don")
 STOCK_WORDS = ("còn", "con", "tồn", "ton", "giá", "gia")
+CONSULT_WORDS = ("tư vấn", "tu van", "gợi ý", "goi y", "recommend", "nên dùng", "nen dung", "phù hợp", "phu hop")
 STOPWORDS = {
     "anh",
     "chị",
@@ -36,6 +37,23 @@ STOPWORDS = {
     "chi",
     "sdt",
     "sđt",
+    "tư",
+    "tu",
+    "vấn",
+    "van",
+    "gợi",
+    "goi",
+    "ý",
+    "y",
+    "recommend",
+    "nên",
+    "nen",
+    "dùng",
+    "dung",
+    "phù",
+    "phu",
+    "hợp",
+    "hop",
 }
 
 
@@ -43,7 +61,9 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
     raw = message.strip()
     lower = raw.lower()
     intent = "unknown"
-    if any(word in lower for word in BUY_WORDS):
+    if any(word in lower for word in CONSULT_WORDS) and not any(word in lower for word in BUY_WORDS):
+        intent = "product_consultation"
+    elif any(word in lower for word in BUY_WORDS):
         intent = "buy_product"
     elif any(word in lower for word in STOCK_WORDS):
         intent = "ask_stock"

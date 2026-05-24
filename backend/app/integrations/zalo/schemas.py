@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from app.chat.schemas import ActionResponse
+from app.chat.schemas import ActionResponse, ProductRecommendationResponse
 
 
 class ZaloMessageRequest(BaseModel):
@@ -21,6 +21,8 @@ class ZaloMessageResponse(BaseModel):
     reply: str
     invoice: dict | None = None
     actions: list[ActionResponse] = Field(default_factory=list)
+    recommended_products: list[ProductRecommendationResponse] = Field(default_factory=list)
+    quick_replies: list[str] = Field(default_factory=list)
     ui_events: list[dict] = Field(default_factory=list)
 
 
@@ -50,3 +52,9 @@ class ZaloManualConnectRequest(BaseModel):
 class ZaloManualConnectResponse(BaseModel):
     status: str
     oa_id: str | None = None
+
+
+class ZaloDemoConnectResponse(BaseModel):
+    status: str
+    oa_id: str | None = None
+    message: str

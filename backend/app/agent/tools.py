@@ -36,6 +36,47 @@ def search_products(db: Session, query: str | None) -> ToolResult:
     )
 
 
+def search_product_recommendations(db: Session, query: str | None, *, limit: int = 5) -> ToolResult:
+    if not query:
+        return ToolResult(type="product_recommendation", status="failed", summary="Chưa có nhóm sản phẩm để tư vấn.")
+    products = list(db.scalars(select(ProductCache).where(ProductCache.workspace_id == DEFAULT_WORKSPACE_ID).limit(200)))
+    query_norm = normalize_text(query)
+    scored: list[tuple[int, ProductCache]] = []
+    for product in products:
+        name_norm = normalize_text(product.name)
+        score = 0
+        if query_norm in name_norm:
+            score += 100
+        for token in query_norm.split():
+            if len(token) > 2 and token in name_norm:
+                score += 10
+        if "kem chong nang" in query_norm and "kem chong nang" in name_norm:
+            score += 40
+        if "spf" in query_norm and "spf" in name_norm:
+            score += 20
+        if score:
+            scored.append((score, product))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    recommendations = [
+        {
+            "id": product.id,
+            "name": product.name,
+            "price": float(product.base_price),
+            "stock": product.stock,
+            "reason": "Phù hợp với nhu cầu tư vấn và đang có dữ liệu tồn kho từ KiotViet.",
+        }
+        for _, product in scored[:limit]
+    ]
+    if not recommendations:
+        return ToolResult(type="product_recommendation", status="failed", summary=f"Không tìm thấy sản phẩm phù hợp với '{query}'.", data={"products": []})
+    return ToolResult(
+        type="product_recommendation",
+        status="success",
+        summary=f"Tìm thấy {len(recommendations)} sản phẩm phù hợp với '{query}'.",
+        data={"products": recommendations},
+    )
+
+
 def check_stock(product_result: ToolResult, quantity: int) -> ToolResult:
     if product_result.status != "success":
         return ToolResult(type="stock_check", status="skipped", summary="Bỏ qua kiểm tra tồn vì chưa tìm thấy sản phẩm.")

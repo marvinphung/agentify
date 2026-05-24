@@ -86,6 +86,19 @@ async def connect_kiotviet(db: Session, data: KiotVietConnectRequest) -> tuple[K
     return integration, sample_count
 
 
+async def connect_kiotviet_from_env(db: Session) -> tuple[KiotVietIntegration, int]:
+    settings = get_settings()
+    if not all([settings.kiotviet_retailer, settings.kiotviet_client_id, settings.kiotviet_client_secret]):
+        raise ValueError("Chưa cấu hình đủ KIOTVIET_RETAILER / KIOTVIET_CLIENT_ID / KIOTVIET_CLIENT_SECRET trong .env backend.")
+
+    payload = KiotVietConnectRequest(
+        retailer=settings.kiotviet_retailer,
+        client_id=settings.kiotviet_client_id,
+        client_secret=settings.kiotviet_client_secret,
+    )
+    return await connect_kiotviet(db, payload)
+
+
 async def client_from_integration(db: Session, integration: KiotVietIntegration) -> KiotVietClient:
     secret = decrypt_secret(integration.encrypted_client_secret)
     client = KiotVietClient(integration.retailer, integration.client_id, secret, integration.access_token)

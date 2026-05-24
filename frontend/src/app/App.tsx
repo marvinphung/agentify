@@ -1,8 +1,8 @@
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
-import { LayoutDashboard, Mail, Calendar, AlertCircle, Workflow, Link2, BarChart3, Settings, Bell, ChevronRight, CheckCircle2, Clock, Zap, TrendingUp, Users, MessageSquare, Play, Pause, Edit, Trash2, Plus, X, Facebook as FacebookIcon, Check, RefreshCw, Download, Filter, Search, ArrowUpRight, Phone, MapPin } from 'lucide-react';
+import { LayoutDashboard, Mail, Calendar, AlertCircle, Workflow, Link2, BarChart3, Settings, Bell, ChevronRight, CheckCircle2, Clock, Zap, Users, MessageSquare, Plus, X, Facebook as FacebookIcon, RefreshCw, Download, Filter, Search, ArrowUpRight, Phone, MapPin, ArrowLeft, Send, Smile, Image, Camera, ArrowRight, Play, Pause, Edit, Trash2 } from 'lucide-react';
 
 type Screen = 'overview' | 'inbox' | 'calendar' | 'approval' | 'workflows' | 'integrations' | 'reports' | 'settings';
-type AppMode = 'landing' | 'connect-zalo' | 'loading-zalo' | 'connect-kiotviet' | 'loading-kiotviet';
+type AppMode = 'landing' | 'connect-zalo' | 'loading-zalo' | 'connect-kiotviet' | 'loading-kiotviet' | 'manage';
 type Modal = 'create-workflow' | 'connect-system' | 'edit-conversation' | 'appointment-detail' | 'report-filter' | 'report-export' | 'edit-setting' | 'member-detail' | 'invite-member' | 'integration-settings' | null;
 type WorkflowItem = { id: number, name: string, status: 'active' | 'paused', triggers: number, conversions: number, description?: string };
 type ZaloStatus = { status: string, app_id?: string | null, oa_id?: string | null, token_expires_at?: string | null };
@@ -19,10 +19,11 @@ type DemoChatResponse = {
   actions: ChatAction[],
   order: ChatOrder | null,
   invoice: InvoicePayload | null,
+  recommended_products: { id: number, name: string, price: number, stock: number, reason: string }[],
+  quick_replies: string[],
   ui_events: UiEvent[],
 };
-type ZaloConnectStartResponse = { authorize_url: string, state: string };
-type ZaloManualConnectResponse = { status: string, oa_id: string | null };
+type ZaloDemoConnectResponse = { status: string, oa_id: string | null, message: string };
 type AgentChatResponse = { conversation_id: number | null, intent: string, reply: string, recommended_products: { id: number, name: string, price: number, stock: number, reason: string }[], quick_replies: string[], actions: string[] };
 type UserChatMessage = { sender: 'customer' | 'ai', text: string };
 type ConversationItem = { id: number, customer_name: string, customer_phone?: string | null, channel: string, status: string, created_at: string };
@@ -31,6 +32,13 @@ type PaymentMethod = 'cod' | 'prepaid' | null;
 type Recommendation = { name: string, price: number, fit: string, skin: string, image: string };
 type PendingProduct = { name: string, price?: number, stock?: number };
 type PendingOrderDraft = { intent: string, shippingAddress: string, deliveryPreference: string | null };
+
+const CONNECT_DELAY_MS = {
+  min: 2000,
+  max: 4000,
+};
+
+const randomConnectDelay = () => CONNECT_DELAY_MS.min + Math.floor(Math.random() * (CONNECT_DELAY_MS.max - CONNECT_DELAY_MS.min));
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const sunscreenRecommendations: Recommendation[] = [
@@ -74,6 +82,12 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error(message);
   }
   return response.json();
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 export default function App() {
@@ -155,69 +169,45 @@ export default function App() {
 
   const startDemo = () => {
     setToast(null);
-    if (zaloStatus.status === 'connected') {
-      setAppMode('connect-kiotviet');
-    } else {
-      setAppMode('connect-zalo');
-    }
+    setAppMode('connect-zalo');
   };
 
-  const startZaloConnection = async () => {
+  const completeZaloFakeAuthorization = async () => {
     setToast(null);
     setAppMode('loading-zalo');
     try {
-      const result = await apiRequest<ZaloConnectStartResponse>('/api/channels/zalo/connect/start');
-      window.location.href = result.authorize_url;
-    } catch (error) {
-      setAppMode('connect-zalo');
-      notify(error instanceof Error ? error.message : 'Không khởi tạo được kết nối Zalo.');
-    }
-  };
-
-  const connectZaloManual = async (payload: { accessToken: string; oaId: string }) => {
-    if (!payload.accessToken.trim()) {
-      notify('Bạn chưa nhập Access Token Zalo.');
-      return;
-    }
-    setToast(null);
-    setAppMode('loading-zalo');
-    try {
-      await apiRequest<ZaloManualConnectResponse>('/api/channels/zalo/connect/manual', {
+      await delay(randomConnectDelay());
+      const result = await apiRequest<ZaloDemoConnectResponse>('/api/channels/zalo/connect/demo', {
         method: 'POST',
-        body: JSON.stringify({
-          access_token: payload.accessToken.trim(),
-          oa_id: payload.oaId.trim() || undefined,
-        }),
       });
       await refreshBackendState();
-      setToast('Đã kết nối Zalo OA thủ công thành công.');
+      setToast(result.message || 'Đã kết nối Zalo OA.');
       setAppMode('connect-kiotviet');
     } catch (error) {
       setAppMode('connect-zalo');
-      notify(error instanceof Error ? error.message : 'Không kết nối được Zalo OA thủ công.');
+      notify(error instanceof Error ? error.message : 'Không thể fake kết nối Zalo.');
     }
   };
 
-  const completeKiotVietConnection = async (payload?: { retailer: string, client_id: string, client_secret: string }) => {
+  const completeKiotVietConnection = async () => {
     setToast(null);
     setAppMode('loading-kiotviet');
     try {
-      if (payload?.client_secret) {
-        await apiRequest('/api/integrations/kiotviet/connect', {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
-      }
+      await delay(randomConnectDelay());
+      await apiRequest('/api/integrations/kiotviet/connect/env', {
+        method: 'POST',
+      });
       const status = await apiRequest<KiotVietStatus>('/api/integrations/kiotviet/status');
-      if (status.status !== 'connected') {
-        throw new Error('Backend chưa có kết nối KiotViet. Vui lòng nhập Client Secret để kết nối.');
+      if (status.status !== 'connected' || status.retailer !== 'bietkhongnhe123') {
+        throw new Error('Không kết nối được KiotViet từ cấu hình backend.');
       }
       await apiRequest('/api/integrations/kiotviet/sync-products', { method: 'POST' });
       await refreshBackendState();
+      setToast('Kết nối KiotViet thành công. Đang mở giao diện quản lý.');
       window.setTimeout(() => {
-        window.history.pushState({}, '', '/user_chat');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }, 1200);
+        setActiveScreen('overview');
+        setAppMode('manage');
+      }, 700);
     } catch (error) {
       setAppMode('connect-kiotviet');
       notify(error instanceof Error ? error.message : 'Không kết nối được KiotViet');
@@ -254,7 +244,6 @@ export default function App() {
       <div className="size-full bg-[#f7faf8] text-slate-950 overflow-auto">
         <LandingPage
           onEnterDemo={startDemo}
-          onNotify={notify}
         />
         {toast && <Toast message={toast} />}
       </div>
@@ -265,8 +254,7 @@ export default function App() {
     return (
       <ZaloConnectScreen
         status={zaloStatus}
-        onPrimary={startZaloConnection}
-        onPrimaryManual={connectZaloManual}
+        onPrimary={completeZaloFakeAuthorization}
         onBack={() => setAppMode('landing')}
       />
     );
@@ -575,127 +563,105 @@ function ConnectionLoadingScreen({ title, description }: { title: string, descri
 function ZaloConnectScreen({
   status,
   onPrimary,
-  onPrimaryManual,
   onBack,
 }: {
   status: ZaloStatus,
   onPrimary: () => void,
-  onPrimaryManual: (payload: { accessToken: string; oaId: string }) => void,
   onBack: () => void,
 }) {
-  const [manualToken, setManualToken] = useState('');
-  const [manualOaId, setManualOaId] = useState('');
-  const isConnected = status.status === 'connected';
+  const isConnected = status.status === 'connected' || status.status === 'demo';
 
   return (
-    <div className="size-full overflow-auto bg-[#f7faf8] text-slate-950">
-      <div className="mx-auto flex min-h-full max-w-6xl flex-col px-6 py-6">
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white">
-              <Zap className="h-5 w-5" />
+    <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-xl">
+        <header className="mb-5 flex items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+              Bước 1/2
             </div>
-            <div>
-              <div className="text-xl font-bold">Agentify</div>
-              <div className="text-xs font-medium text-slate-500">Thiết lập demo: Bước 1/2</div>
-            </div>
+            <h1 className="mt-3 text-2xl font-bold leading-tight">Authorize Agentify + Zalo OA</h1>
+            <p className="mt-1 text-sm text-slate-500">Đăng nhập bằng tài khoản shop để tiếp tục kết nối hệ thống.</p>
           </div>
-          <button onClick={onBack} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:text-teal-700">
-            Quay lại
+          <button onClick={onBack} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Đóng
           </button>
         </header>
 
-        <main className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.9fr_1.1fr]">
-          <section>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 shadow-sm">
-              Bước 1/2
+        <section className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-4 flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4">
+            <img src="/agentify-logo.png" alt="Agentify" className="h-14 w-14 rounded-xl border border-slate-200 object-cover bg-white" />
+            <div className="h-9 w-9 rounded-full bg-[#0084ff] text-white flex items-center justify-center font-bold">Z</div>
+            <img
+              src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=60"
+              alt="avatar"
+              className="h-14 w-14 rounded-full border border-slate-200 object-cover"
+            />
+            <div>
+              <p className="text-sm text-slate-500">Tài khoản shop</p>
+              <p className="text-sm font-semibold text-slate-900">@bikestore_demo</p>
             </div>
-            <h1 className="max-w-xl text-4xl font-bold tracking-tight text-slate-950 lg:text-5xl">Kết nối Zalo OA</h1>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-              Kết nối Zalo OA để Agentify nhận và gửi tin nhắn thật trong luồng khách hàng.
-            </p>
-            <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-700">Trạng thái</span>
-                <span className={`rounded-full px-3 py-1 text-xs font-bold ${isConnected ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}`}>
-                  {isConnected ? `Đã kết nối ${status.oa_id ? `(${status.oa_id})` : ''}` : 'Chưa kết nối'}
-                </span>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  onClick={onPrimary}
-                  className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700"
-                  disabled={isConnected}
-                >
-                  {isConnected ? 'Đã kết nối Zalo OA' : 'Kết nối Zalo OA bằng OAuth'}
-                </button>
-                <button
-                  onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-                  className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-teal-300 hover:text-teal-700"
-                >
-                  Kết nối thủ công
-                </button>
-              </div>
-            </div>
-          </section>
+          </div>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-teal-900/10">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <div className="mb-4">
-                <div className="text-sm font-semibold text-slate-500">Kết nối thủ công (fallback)</div>
-                <div className="mt-1 text-xl font-bold text-slate-950">Dùng khi test hoặc khi chưa có OAuth callback</div>
-              </div>
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-700">Zalo Access Token</span>
-                <input
-                  value={manualToken}
-                  onChange={(event) => setManualToken(event.target.value)}
-                  type="password"
-                  placeholder="Nhập token truy cập OA"
-                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm"
-                />
-              </label>
-              <label className="mt-4 block">
-                <span className="text-sm font-semibold text-slate-700">OA ID (tuỳ chọn)</span>
-                <input
-                  value={manualOaId}
-                  onChange={(event) => setManualOaId(event.target.value)}
-                  placeholder="Nhập OA ID nếu có"
-                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm"
-                />
-              </label>
-              <button
-                onClick={() => onPrimaryManual({ accessToken: manualToken, oaId: manualOaId })}
-                className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-              >
-                Kết nối thủ công ngay
-              </button>
+          <h2 className="text-lg font-bold text-slate-900">Agentify muốn truy cập vào Zalo OA của bạn</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Tạo một kết nối an toàn giữa tài khoản shop và Agentify để đọc tin nhắn, phản hồi tự động và kích hoạt quy trình bán hàng.
+          </p>
+
+          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <div className="font-semibold">Quyền truy cập theo yêu cầu</div>
+            <ul className="mt-2 space-y-1 text-sm">
+              <li>• Nhận tin nhắn từ khách trên Zalo OA</li>
+              <li>• Trả lời và gửi nội dung tự động</li>
+              <li>• Đồng bộ cuộc hội thoại để quản lý trong dashboard</li>
+              <li>• Tạo hóa đơn điện tử sau khi khách đặt đơn</li>
+            </ul>
+          </div>
+
+          <div className="mt-5 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Trạng thái</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isConnected ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                {isConnected ? 'Sẵn sàng xác nhận lại' : 'Chưa cho phép'}
+              </span>
             </div>
-          </section>
-        </main>
+            <div className="text-slate-600">Môi trường: shop demo</div>
+          </div>
+
+          <div className="mt-6">
+            <button
+              onClick={onPrimary}
+              className="w-full rounded-lg bg-[#0084ff] px-4 py-3 text-sm font-bold text-white shadow hover:opacity-90"
+            >
+              Cho phép truy cập
+            </button>
+            <p className="mt-2 text-center text-[11px] text-slate-500">
+              Bấm cho phép để mô phỏng luồng OAuth như app thực tế.
+            </p>
+          </div>
+        </section>
       </div>
     </div>
   );
 }
 
 function UserChatScreen() {
-  const [customerName, setCustomerName] = useState(() => window.localStorage.getItem('agentify_user_chat_customer_name') || '');
-  const [customerPhone, setCustomerPhone] = useState(() => window.localStorage.getItem('agentify_user_chat_customer_phone') || '');
-  const [address, setAddress] = useState('12 Nguyễn Trãi, Hà Nội');
+  const [customerName] = useState('Khách Zalo');
+  const [customerPhone] = useState('');
   const [channelUserId, setChannelUserId] = useState(() => window.localStorage.getItem('agentify_user_chat_channel_user_id') || '');
-  const [profileReady, setProfileReady] = useState(() => Boolean(window.localStorage.getItem('agentify_user_chat_customer_name') && window.localStorage.getItem('agentify_user_chat_customer_phone')));
   const [conversationId, setConversationId] = useState<number | null>(() => {
     const saved = window.localStorage.getItem('agentify_user_chat_conversation_id');
     return saved ? Number(saved) : null;
   });
   const [messages, setMessages] = useState<UserChatMessage[]>([
-    { sender: 'ai', text: 'Chào chị, gửi tin nhắn một trong hai dạng mẫu phía dưới để em thử quy trình: có thể đặt hàng luôn, em sẽ thử tạo hóa đơn tạm tính trong hội thoại.' }
+    { sender: 'ai', text: 'Chào chị, Lumi Beauty có thể tư vấn sản phẩm, kiểm tra đơn hoặc hỗ trợ đặt hàng ngay trong Zalo.' }
   ]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actions, setActions] = useState<ChatAction[]>([]);
   const [invoice, setInvoice] = useState<InvoicePayload | null>(null);
+  const [recommendedProducts, setRecommendedProducts] = useState<AgentChatResponse['recommended_products']>([]);
+  const [quickReplyOptions, setQuickReplyOptions] = useState<string[]>([]);
   const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
   const [invoiceDeliveredOrderId, setInvoiceDeliveredOrderId] = useState<number | null>(null);
 
@@ -703,23 +669,6 @@ function UserChatScreen() {
     if (!id) return;
     setConversationId(id);
     window.localStorage.setItem('agentify_user_chat_conversation_id', String(id));
-  };
-
-  const saveCustomerProfile = () => {
-    const name = customerName.trim();
-    const phone = customerPhone.trim();
-    if (!name || !phone) {
-      setError('Vui lòng nhập tên và số điện thoại để gửi đúng khách hàng.');
-      return;
-    }
-    window.localStorage.setItem('agentify_user_chat_customer_name', name);
-    window.localStorage.setItem('agentify_user_chat_customer_phone', phone);
-    window.localStorage.setItem('agentify_user_chat_channel_user_id', channelUserId);
-    setCustomerName(name);
-    setCustomerPhone(phone);
-    setError(null);
-    setProfileReady(true);
-    setMessages([{ sender: 'ai', text: `Chào chị ${name}, em sẵn sàng nhận tin nhắn và lên hóa đơn cho shop thử nha.` }]);
   };
 
   const appendAi = (text: string) => setMessages((current) => [...current, { sender: 'ai', text }]);
@@ -736,6 +685,8 @@ function UserChatScreen() {
     setInvoice(null);
     setInvoiceDeliveredOrderId(null);
     setUiEvents([]);
+    setRecommendedProducts([]);
+    setQuickReplyOptions([]);
     setError(null);
     try {
       const result = await apiRequest<DemoChatResponse>('/api/channels/zalo/messages', {
@@ -752,11 +703,13 @@ function UserChatScreen() {
       appendAi(result.reply);
       setActions(result.actions || []);
       setInvoice(result.invoice);
+      setRecommendedProducts(result.recommended_products || []);
+      setQuickReplyOptions(result.quick_replies || []);
       setUiEvents(result.ui_events || []);
       if (result.invoice) {
+        const deliveryEvent = (result.ui_events || []).find((event) => event.type === 'zalo_invoice_send');
         appendAi(`Dạ em đã tạo hóa đơn tạm tính #${result.invoice.order_id} trong hội thoại.`);
-        appendAi(`Đã gửi hóa đơn tạm tính #${result.invoice.order_id} lại cho khách qua luồng Zalo OA.`);
-        setInvoiceDeliveredOrderId(result.invoice.order_id);
+        appendAi(deliveryEvent?.title || `Đã gửi hóa đơn tạm tính #${result.invoice.order_id} lại cho khách qua luồng Zalo OA.`);
       }
     } catch (err) {
       const fallback = err instanceof Error ? err.message : 'Không gửi được tin nhắn';
@@ -767,163 +720,94 @@ function UserChatScreen() {
     }
   };
 
-  if (!profileReady) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef5f1] px-4 text-slate-950">
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            saveCustomerProfile();
-          }}
-          className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/80"
-        >
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-600 text-white">
-              <Zap className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-slate-950">Lumi Beauty</div>
-              <div className="text-sm text-slate-500">Nhập thông tin để shop hỗ trợ đúng đơn hàng</div>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Tên của chị</span>
-              <input
-                value={customerName}
-                onChange={(event) => setCustomerName(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
-                placeholder="Ví dụ: Nguyễn Thảo"
-                autoFocus
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Số điện thoại</span>
-              <input
-                value={customerPhone}
-                onChange={(event) => setCustomerPhone(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
-                placeholder="Ví dụ: 0901234567"
-                inputMode="tel"
-              />
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Zalo User ID (tuỳ chọn để test gửi hóa đơn)</span>
-              <input
-                value={channelUserId}
-                onChange={(event) => setChannelUserId(event.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
-                placeholder="Ví dụ: 1234567890"
-                inputMode="text"
-              />
-            </label>
-          </div>
-          {error && <div className="mt-4 rounded-xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
-          <button className="mt-6 w-full rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700">
-            Bắt đầu trò chuyện
-          </button>
-        </form>
-      </div>
-    );
-  }
-
   return (
-    <div className="size-full bg-[#eef5f1] text-slate-950">
-      <main className="mx-auto flex h-full min-h-screen w-full max-w-3xl flex-col bg-white shadow-xl shadow-slate-200/80 sm:my-6 sm:h-[calc(100vh-48px)] sm:min-h-0 sm:rounded-2xl sm:border sm:border-slate-200">
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:rounded-t-2xl sm:px-5">
-          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-600 text-white">
-            <Zap className="h-5 w-5" />
-          </div>
+    <div className="min-h-screen bg-[#e5edf5] p-2 sm:p-4 flex items-center justify-center">
+      <main className="w-full max-w-[520px] bg-[#f4f8fc] border border-slate-200 rounded-[28px] overflow-hidden shadow-xl h-[calc(100vh-1rem)] flex flex-col">
+        <header className="bg-[#0092e8] text-white px-4 py-3 flex items-center gap-3">
+          <div className="h-9 w-9 rounded-full bg-white/25 flex items-center justify-center text-xs font-bold">🛍</div>
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-bold text-slate-950">Lumi Beauty · Chat Demo</div>
-            <div className="text-xs text-slate-500">Chat demo trên Zalo</div>
+            <div className="text-sm font-semibold">Lumi Beauty</div>
+            <div className="text-xs opacity-90">Shop Chat Zalo</div>
           </div>
-          <button onClick={() => setProfileReady(false)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-teal-300 hover:text-teal-700">
-            {customerName} · Sửa
+          <button onClick={() => setChannelUserId('')} className="text-xs font-semibold bg-white/20 rounded-full px-3 py-1.5">
+            Khách Zalo
           </button>
         </header>
 
-        <div className="p-4 border-b border-slate-200 bg-slate-50 text-sm text-slate-700">
-          <label className="block">
-            <span className="font-semibold">Địa chỉ nhận hàng mặc định</span>
-            <input value={address} onChange={(event) => setAddress(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </label>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-auto bg-[#f8faf9] px-4 py-5 sm:px-5">
+        <div className="flex-1 overflow-auto px-3 py-4 space-y-3 bg-[#f4f8fc]">
           {messages.map((item, index) => (
             <ChatMessage key={index} sender={item.sender === 'customer' ? 'customer' : 'ai'} text={item.text} />
           ))}
           {loading && <ChatMessage sender="ai" text="Đang gửi tin nhắn và xử lý đơn..." />}
 
           {!!invoice && (
-            <div className="rounded-2xl border border-teal-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-slate-900">Hóa đơn #{invoice.order_id}</h4>
-                <span className="text-xs rounded-full bg-teal-50 px-2 py-1 text-teal-700">{invoice.status}</span>
-              </div>
-              <div className="mt-3 space-y-2">
-                {invoice.items.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <span>{item.name} x {item.quantity}</span>
-                    <span>{Number(item.line_total).toLocaleString('vi-VN')}đ</span>
-                  </div>
-                ))}
-                <div className="border-t pt-2 font-semibold text-teal-800 flex justify-between">
-                  <span>Tổng</span>
-                  <span>{Number(invoice.total).toLocaleString('vi-VN')} {invoice.currency}</span>
-                </div>
-              </div>
-              <div className="mt-2 text-xs text-slate-600">Khách: {invoice.customer_name || customerName} · {invoice.customer_phone || customerPhone}</div>
-              <div className="mt-1 text-xs text-slate-600">Địa chỉ: {invoice.shipping_address || address}</div>
-            </div>
+            <DigitalInvoiceCard
+              invoice={invoice}
+              customerName={invoice.customer_name || customerName}
+              customerPhone={invoice.customer_phone || customerPhone}
+              shippingAddress={invoice.shipping_address || ''}
+            />
+          )}
+
+          {!!recommendedProducts.length && (
+            <LlmProductPanel
+              products={recommendedProducts}
+              onChoose={(product) => sendToAgent(`Em muốn đặt ${product.name}`)}
+            />
           )}
 
           {!!invoice && invoiceDeliveredOrderId !== invoice.order_id && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <div className="text-sm font-semibold text-emerald-900">Bước tiếp theo của agent</div>
-              <p className="mt-1 text-sm text-emerald-800">Kéo nhanh để mô phỏng việc gửi hóa đơn về cho khách trên Zalo OA.</p>
-              <button
-                onClick={() => {
-                  setInvoiceDeliveredOrderId(invoice?.order_id || null);
-                  appendAi(`Em đã gửi hóa đơn #${invoice?.order_id || ''} lại vào luồng chat Zalo OA cho khách.`);
-                }}
-                className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-              >
-                Gửi hóa đơn cho khách
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                setInvoiceDeliveredOrderId(invoice?.order_id || null);
+                appendAi(`Đã gửi hóa đơn #${invoice?.order_id || ''} cho khách qua kênh Zalo OA.`);
+              }}
+              className="w-full rounded-lg bg-[#0068d6] px-3 py-2 text-xs font-semibold text-white"
+            >
+              Gửi hóa đơn cho khách trên Zalo
+            </button>
           )}
 
           {!!invoice && invoiceDeliveredOrderId === invoice.order_id && (
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Đã gửi hóa đơn tạm tính cho khách bằng kênh Zalo OA.</div>
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              {(uiEvents.find((event) => event.type === 'zalo_invoice_send')?.title) || 'Đã tạo hóa đơn tạm tính và thông báo cho khách.'}
+            </div>
           )}
 
           {!!uiEvents.length && (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="mb-2 text-sm font-semibold text-slate-900">Những gì đã xảy ra</div>
+            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+              <div className="mb-1 text-xs font-semibold text-slate-500">Event</div>
               {uiEvents.map((event, index) => (
-                <div key={`${event.type}-${index}`} className="mb-2 text-sm text-slate-700">• {event.title}: {event.detail}</div>
+                <div key={`${event.type}-${index}`} className="mb-1">• {event.title}: {event.detail}</div>
               ))}
             </div>
           )}
 
-          {error && <div className="rounded-2xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
+          {!!actions.length && (
+            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
+              <strong>Action gần nhất:</strong> {actions.map((item) => item.summary).join(' | ')}
+            </div>
+          )}
+
+          {error && <div className="rounded-lg border border-coral-200 bg-coral-50 px-3 py-2 text-xs text-coral-700">{error}</div>}
         </div>
 
-        <div className="p-4 border-t border-slate-200 bg-white sm:rounded-b-[28px]">
+        <footer className="border-t border-slate-200 bg-white p-3">
+          {!!quickReplyOptions.length && (
           <div className="mb-3 flex flex-wrap gap-2">
-            <button onClick={() => sendToAgent('Đặt cho em 1 serum vitamin C, giao tới ' + address + ', SĐT ' + customerPhone)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
-              Gửi mẫu: đặt serum
-            </button>
-            <button onClick={() => sendToAgent('Đặt cho chị 1 kem chống nắng dịu nhẹ, giao tới ' + address + ', SĐT ' + customerPhone)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
-              Gửi mẫu: đặt kem chống nắng
-            </button>
-            <button onClick={() => setActions([])} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
-              Xóa lịch sử hành động
-            </button>
+            {quickReplyOptions.map((quickReply) => (
+              <button
+                key={quickReply}
+                onClick={() => sendToAgent(quickReply)}
+                className="rounded-full border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-teal-50"
+              >
+                {quickReply}
+              </button>
+            ))}
           </div>
-          <div className="flex items-end gap-3">
+          )}
+
+          <div className="flex items-end gap-2">
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
@@ -934,19 +818,18 @@ function UserChatScreen() {
                 }
               }}
               rows={2}
-              className="max-h-32 min-h-[52px] flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
+              className="max-h-28 min-h-[52px] flex-1 resize-none rounded-full border border-slate-300 px-4 py-3 text-sm focus:border-[#0092e8] focus:outline-none"
               placeholder="Nhập tin nhắn khách hàng..."
             />
-            <button onClick={() => sendToAgent(message)} disabled={loading} className="h-[52px] rounded-2xl bg-teal-600 px-5 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700 disabled:opacity-60">
-              {loading ? 'Đang gửi' : 'Gửi'}
+            <button
+              onClick={() => sendToAgent(message)}
+              disabled={loading}
+              className="h-[52px] rounded-full bg-[#0092e8] px-5 text-sm font-semibold text-white hover:bg-[#007fd1] disabled:opacity-60"
+            >
+              {loading ? '...' : 'Gửi'}
             </button>
           </div>
-          {!!actions.length && (
-            <div className="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-600">
-              <strong>Action gần nhất:</strong> {actions.map((item) => item.summary).join(' | ')}
-            </div>
-          )}
-        </div>
+        </footer>
       </main>
     </div>
   );
@@ -964,110 +847,96 @@ function KiotVietConnectScreen({
   status: KiotVietStatus,
   productCount: number,
   backendReady: boolean,
-  onPrimary: (payload?: { retailer: string, client_id: string, client_secret: string }) => void,
+  onPrimary: () => void,
   onBack: () => void,
   onRefresh: () => void,
   toast: string | null
 }) {
-  const [retailer, setRetailer] = useState(status.retailer || 'bietkhongnhe123');
-  const [clientId, setClientId] = useState('aa4618b7-4233-4340-878c-eec4edfb0761');
-  const [clientSecret, setClientSecret] = useState('');
   const connected = status.status === 'connected';
+  const retailer = status.retailer || 'bietkhongnhe123';
+  const clientId = 'aa4618b7-4233-4340-878c-eec4edfb0761';
 
   return (
-    <div className="size-full overflow-auto bg-[#f7faf8] text-slate-950">
-      <div className="mx-auto flex min-h-full max-w-6xl flex-col px-6 py-6">
-        <header className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white">
-              <Zap className="h-5 w-5" />
+    <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-xl">
+        <header className="mb-5 flex items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              Bước 2/2
             </div>
-            <div>
-              <div className="text-xl font-bold">Agentify</div>
-              <div className="text-xs font-medium text-slate-500">Thiết lập demo sản phẩm</div>
-            </div>
+            <h1 className="mt-3 text-2xl font-bold leading-tight">Authorize Agentify + KiotViet</h1>
+            <p className="mt-1 text-sm text-slate-500">Đang dùng cấu hình shop demo trong backend.</p>
           </div>
-          <button onClick={onBack} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:text-teal-700">
+          <button onClick={onBack} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Quay lại
           </button>
         </header>
 
-        <main className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.9fr_1.1fr]">
-          <section>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 shadow-sm">
-              Bước 2/2
-            </div>
-            <h1 className="max-w-xl text-4xl font-bold tracking-tight text-slate-950 lg:text-5xl">Kết nối KiotViet thật</h1>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-              Agentify sẽ gọi backend để kiểm tra token, đồng bộ sản phẩm và dùng dữ liệu KiotViet trong màn chat demo.
-            </p>
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-700">Trạng thái backend</span>
-                <span className={`rounded-full px-3 py-1 text-xs font-bold ${backendReady ? 'bg-teal-50 text-teal-700' : 'bg-coral-50 text-coral-700'}`}>
-                  {backendReady ? 'Đang chạy' : 'Chưa kết nối'}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-700">KiotViet</span>
-                <span className={`rounded-full px-3 py-1 text-xs font-bold ${connected ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}`}>
-                  {connected ? `Đã kết nối ${status.retailer}` : 'Chưa kết nối'}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm font-semibold text-slate-700">Sản phẩm đã sync</span>
-                <span className="text-sm font-bold text-slate-950">{productCount}</span>
+        <section className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <img src="/agentify-logo.png" alt="Agentify" className="h-12 w-12 rounded-xl border border-slate-200 bg-white" />
+              <div className="text-2xl font-bold text-slate-700">•</div>
+              <div className="h-11 w-11 rounded-full bg-emerald-600 text-lg font-bold text-white flex items-center justify-center">K</div>
+              <div>
+                <div className="text-sm text-slate-500">Đang gửi đến</div>
+                <div className="font-semibold text-slate-900">KiotViet</div>
               </div>
             </div>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button
-                onClick={() => onPrimary(connected ? undefined : { retailer, client_id: clientId, client_secret: clientSecret })}
-                className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700"
-              >
-                {connected ? 'Đồng bộ và tiếp tục' : 'Kết nối KiotViet'}
-              </button>
-              <button onClick={onRefresh} className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-teal-300 hover:text-teal-700">
-                Kiểm tra lại
-              </button>
-            </div>
-            <div className="mt-8 h-2 max-w-md overflow-hidden rounded-full bg-white shadow-inner">
-              <div className="h-full rounded-full bg-teal-600 transition-all" style={{ width: '66%' }} />
-            </div>
-          </section>
+            <h2 className="text-lg font-bold text-slate-900">Đăng nhập bằng tài khoản shop</h2>
+            <p className="mt-2 text-sm text-slate-600">Tên gian hàng: <span className="font-semibold">{retailer}</span></p>
+            <p className="text-sm text-slate-600">Client ID: <span className="font-semibold">{clientId}</span></p>
+          </div>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-teal-900/10">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <div className="mb-5">
-                <div className="text-sm font-semibold text-slate-500">Thông tin kết nối</div>
-                <div className="mt-1 text-3xl font-bold text-slate-950">KiotViet Retail</div>
-              </div>
-              <div className="space-y-4">
-                <label className="block">
-                  <span className="text-sm font-semibold text-slate-700">Tên gian hàng</span>
-                  <input value={retailer} onChange={(event) => setRetailer(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm" />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-semibold text-slate-700">Client ID</span>
-                  <input value={clientId} onChange={(event) => setClientId(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm" />
-                </label>
-                <label className="block">
-                  <span className="text-sm font-semibold text-slate-700">Mã bảo mật</span>
-                  <input value={clientSecret} onChange={(event) => setClientSecret(event.target.value)} type="password" placeholder={connected ? 'Đã lưu trong backend local' : 'Nhập mã bảo mật KiotViet'} className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm" />
-                </label>
-              </div>
-              <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm leading-6 text-teal-800">
-                Nếu backend Docker đã connect KiotViet, bạn chỉ cần bấm “Đồng bộ và tiếp tục”. Mã bảo mật không được lưu trong frontend.
-              </div>
+          <h3 className="text-sm font-semibold text-slate-900">Thông tin quyền truy cập</h3>
+          <ul className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 space-y-2">
+            <li>• Đọc sản phẩm, tồn kho, đơn hàng.</li>
+            <li>• Tạo đơn tạm tính cho hội thoại từ Zalo OA.</li>
+            <li>• Tự động điền thông tin khách và địa chỉ giao.</li>
+          </ul>
+
+          <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Backend</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${backendReady ? 'bg-emerald-50 text-emerald-700' : 'bg-coral-50 text-coral-700'}`}>
+                {backendReady ? 'Đang chạy' : 'Chưa kết nối'}
+              </span>
             </div>
-          </section>
-        </main>
+            <div className="flex items-center justify-between">
+              <span>KiotViet</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                {connected ? `Đã kết nối ${status.retailer || 'bietkhongnhe123'}` : 'Chưa kết nối'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Sản phẩm sync</span>
+              <span className="text-sm font-bold text-slate-900">{productCount}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            <button
+              onClick={onPrimary}
+              className="rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
+            >
+              {connected ? 'Đồng bộ và mở quản lý' : 'Kết nối KiotViet'}
+            </button>
+            <button onClick={onRefresh} className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:border-emerald-300 hover:text-emerald-700">
+              Kiểm tra lại
+            </button>
+          </div>
+
+          <p className="mt-3 text-center text-[11px] text-slate-500">
+            Sau 2-4 giây, hệ thống sẽ chuyển sang giao diện quản lý.
+          </p>
+        </section>
       </div>
       {toast && <Toast message={toast} />}
     </div>
   );
 }
 
-function LandingPage({ onEnterDemo, onNotify }: { onEnterDemo: () => void, onNotify: (message: string) => void }) {
+function LandingPage({ onEnterDemo }: { onEnterDemo: () => void }) {
   return (
     <div className="min-h-screen bg-[#eef6f3] text-slate-900">
       <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-8">
@@ -1102,28 +971,12 @@ function LandingPage({ onEnterDemo, onNotify }: { onEnterDemo: () => void, onNot
           >
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">Bước 2 / 2</p>
             <h1 className="mt-2 text-2xl font-bold">Kết nối KiotViet</h1>
-            <p className="mt-2 text-sm text-slate-600">Khi đã vào bước này, demo sẽ mở chat để gửi tin nhắn Zalo và tự tạo hóa đơn.</p>
+            <p className="mt-2 text-sm text-slate-600">Sau khi Zalo được cho phép, Agentify sẽ dùng cấu hình backend để kết nối shop KiotViet.</p>
             <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-500">
-              Vào trực tiếp chat demo
-              <MessageSquare className="h-4 w-4" />
+              Tự động mở sau bước Zalo
+              <ChevronRight className="h-4 w-4" />
             </span>
           </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6">
-          <h2 className="text-lg font-semibold">Kịch bản demo</h2>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
-            <li>Bấm bước 1 để kết nối Zalo OA.</li>
-            <li>Nhập thông tin KiotViet (mã đại lý giả lập mặc định) ở bước 2.</li>
-            <li>Sau đó vào Zalo chat để gửi mẫu: <span className="font-semibold">"Đặt cho chị ..."</span>.</li>
-            <li>Xem ngay phản hồi AI + thẻ hóa đơn + thông điệp "đã gửi hóa đơn".</li>
-          </ol>
-          <button
-            onClick={() => onNotify('Đã chọn chế độ demo nhanh 2 bước')}
-            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
-          >
-            Nhắc lại flow này
-          </button>
         </section>
       </div>
     </div>
@@ -2588,6 +2441,76 @@ function InvoiceCard({ order, paymentMethod, paymentConfirmed = false, eta, deli
           )}
         </div>
         {eta && <div className="mt-3 text-sm font-semibold text-slate-700">Dự kiến giao hàng: {eta}</div>}
+      </div>
+    </div>
+  );
+}
+
+function DigitalInvoiceCard({ invoice, customerName, customerPhone, shippingAddress }: { invoice: InvoicePayload, customerName: string, customerPhone: string, shippingAddress: string }) {
+  const paymentText = invoice.payment_method || 'COD';
+  const qrText = `AGENTIFY-INV-${invoice.order_id}-${Math.round(Number(invoice.total))}-${invoice.currency}`;
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border-2 border-slate-900/15 bg-slate-50 p-3">
+        <div className="text-center">
+          <div className="text-[11px] text-slate-500">CÔNG TY CỔ PHẦN COSMETHIC</div>
+          <div className="text-lg font-extrabold tracking-wide">HÓA ĐƠN ĐIỆN TỬ</div>
+          <div className="text-xs text-slate-600">Mẫu tham khảo</div>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-700">
+          <div><span className="font-semibold">Mã hóa đơn:</span> {invoice.order_id}</div>
+          <div><span className="font-semibold">Ngày:</span> {new Date().toLocaleDateString('vi-VN')}</div>
+          <div><span className="font-semibold">Khách:</span> {customerName || 'Khách lẻ'}</div>
+          <div><span className="font-semibold">SĐT:</span> {customerPhone || '—'}</div>
+          <div className="col-span-2"><span className="font-semibold">Địa chỉ:</span> {shippingAddress || '—'}</div>
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <div className="overflow-hidden rounded-xl border border-slate-200">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-100">
+              <tr>
+                <th className="px-2 py-2">Sản phẩm</th>
+                <th className="px-2 py-2 text-right">SL</th>
+                <th className="px-2 py-2 text-right">Thành tiền</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoice.items.map((item, index) => (
+                <tr key={`${item.name}-${index}`} className={index % 2 ? 'bg-slate-50' : ''}>
+                  <td className="px-2 py-2">{item.name}</td>
+                  <td className="px-2 py-2 text-right">{item.quantity}</td>
+                  <td className="px-2 py-2 text-right">{Number(item.line_total).toLocaleString('vi-VN')}đ</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-1 rounded-xl bg-teal-50 px-3 py-2 text-sm font-semibold text-slate-900">
+        <div className="flex items-center justify-between">
+          <span>Phương thức</span>
+          <span>{paymentText}</span>
+        </div>
+        <div className="flex items-center justify-between text-lg">
+          <span>Tổng thanh toán</span>
+          <span>{Number(invoice.total).toLocaleString('vi-VN')} {invoice.currency}</span>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-start gap-3">
+        <img
+          src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=10&data=${encodeURIComponent(qrText)}`}
+          alt="QR hóa đơn"
+          className="h-28 w-28 rounded-lg border border-slate-200 bg-white"
+        />
+        <div className="min-w-0 flex-1 text-xs text-slate-700">
+          <div className="font-semibold">Mã QR thanh toán</div>
+          <div className="mt-1 break-all">{qrText}</div>
+          <div className="mt-2 text-[11px] text-slate-500">Quét QR để thanh toán hoặc đối soát trên hệ thống.</div>
+        </div>
       </div>
     </div>
   );
