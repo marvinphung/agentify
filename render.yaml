@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: agentify-api
+    runtime: docker
+    plan: free
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        value: postgresql+psycopg://agentify:agentify@131.153.239.187:5441/agentify
+      - key: CORS_ORIGINS
+        value: https://agentify-olive.vercel.app,https://agentify.io.vn,https://www.agentify.io.vn,http://localhost:5173,http://127.0.0.1:5173
+      - key: FRONTEND_BASE_URL
+        value: https://agentify-olive.vercel.app
+      - key: PUBLIC_BACKEND_URL
+        value: https://api.agentify.io.vn
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEMO_STOCK_FALLBACK
+        value: "10"
+      - key: KIOTVIET_CREATE_REAL_ORDERS
+        value: "false"
+      - key: LLM_HTTP_REFERER
+        value: https://agentify-olive.vercel.app
+      - key: LLM_APP_TITLE
+        value: Agentify MVP
+      - key: ZALO_APP_ID
+        sync: false
+      - key: ZALO_APP_SECRET
+        sync: false
+      - key: ZALO_CALLBACK_SUCCESS_REDIRECT
+        value: https://agentify-olive.vercel.app/?zalo_connected=1
+      - key: ZALO_CALLBACK_ERROR_REDIRECT
+        value: https://agentify-olive.vercel.app/?zalo_connected=0

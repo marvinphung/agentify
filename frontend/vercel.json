@@ -2,15 +2,15 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://131.153.239.187:8763/api/:path*"
+      "destination": "https://api.agentify.io.vn/api/:path*"
     },
     {
       "source": "/health",
-      "destination": "http://131.153.239.187:8763/health"
+      "destination": "https://api.agentify.io.vn/health"
     },
     {
       "source": "/v1/api/:path*",
-      "destination": "http://131.153.239.187:8763/v1/api/:path*"
+      "destination": "https://api.agentify.io.vn/v1/api/:path*"
     },
     {
       "source": "/(.*)",

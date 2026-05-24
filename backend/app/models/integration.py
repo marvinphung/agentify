@@ -23,3 +23,18 @@ class KiotVietIntegration(Base):
 
     workspace = relationship("Workspace", back_populates="integrations")
 
+
+class ZaloIntegration(Base):
+    __tablename__ = "zalo_integrations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True, unique=True)
+    oa_id: Mapped[str | None] = mapped_column(String(255))
+    access_token: Mapped[str | None] = mapped_column(Text)
+    token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(50), default="disconnected")
+    last_connected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    workspace = relationship("Workspace", back_populates="zalo_integrations")

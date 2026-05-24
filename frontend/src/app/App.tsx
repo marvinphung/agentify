@@ -2,14 +2,27 @@ import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { LayoutDashboard, Mail, Calendar, AlertCircle, Workflow, Link2, BarChart3, Settings, Bell, ChevronRight, CheckCircle2, Clock, Zap, TrendingUp, Users, MessageSquare, Play, Pause, Edit, Trash2, Plus, X, Facebook as FacebookIcon, Check, RefreshCw, Download, Filter, Search, ArrowUpRight, Phone, MapPin } from 'lucide-react';
 
 type Screen = 'overview' | 'inbox' | 'calendar' | 'approval' | 'workflows' | 'integrations' | 'reports' | 'settings';
-type AppMode = 'landing' | 'connect-zalo' | 'loading-zalo' | 'connect-kiotviet' | 'loading-kiotviet' | 'connect-calendar' | 'loading-calendar' | 'dashboard';
+type AppMode = 'landing' | 'connect-zalo' | 'loading-zalo' | 'connect-kiotviet' | 'loading-kiotviet';
 type Modal = 'create-workflow' | 'connect-system' | 'edit-conversation' | 'appointment-detail' | 'report-filter' | 'report-export' | 'edit-setting' | 'member-detail' | 'invite-member' | 'integration-settings' | null;
 type WorkflowItem = { id: number, name: string, status: 'active' | 'paused', triggers: number, conversions: number, description?: string };
+type ZaloStatus = { status: string, app_id?: string | null, oa_id?: string | null, token_expires_at?: string | null };
 type KiotVietStatus = { status: string, retailer?: string | null, last_sync_at?: string | null };
 type ProductItem = { id: number, name: string, code?: string | null, base_price: string, stock: number };
 type ChatAction = { type: string, status: string, summary: string };
 type ChatOrder = { id: number, kiotviet_order_code?: string | null, status: string, total: string, customer_name?: string | null, customer_phone?: string | null, shipping_address?: string | null, items?: { name: string, quantity: number, price: number }[] };
-type DemoChatResponse = { conversation_id: number, reply: string, actions: ChatAction[], order: ChatOrder | null };
+type InvoiceLineItem = { name: string, quantity: number, unit_price: number, line_total: number };
+type InvoicePayload = { order_id: number, status: string, total: number, currency: string, customer_name?: string | null, customer_phone?: string | null, shipping_address?: string | null, items: InvoiceLineItem[], payment_method?: string | null };
+type UiEvent = { type: string, status: string, title: string, detail: string };
+type DemoChatResponse = {
+  conversation_id: number,
+  reply: string,
+  actions: ChatAction[],
+  order: ChatOrder | null,
+  invoice: InvoicePayload | null,
+  ui_events: UiEvent[],
+};
+type ZaloConnectStartResponse = { authorize_url: string, state: string };
+type ZaloManualConnectResponse = { status: string, oa_id: string | null };
 type AgentChatResponse = { conversation_id: number | null, intent: string, reply: string, recommended_products: { id: number, name: string, price: number, stock: number, reason: string }[], quick_replies: string[], actions: string[] };
 type UserChatMessage = { sender: 'customer' | 'ai', text: string };
 type ConversationItem = { id: number, customer_name: string, customer_phone?: string | null, channel: string, status: string, created_at: string };
@@ -77,6 +90,7 @@ export default function App() {
     { id: 4, name: 'Chuyển câu hỏi rủi ro cho nhân viên', status: 'active', triggers: 18, conversions: 18 },
     { id: 5, name: 'Gửi khảo sát sau dịch vụ', status: 'paused', triggers: 0, conversions: 0 }
   ]);
+  const [zaloStatus, setZaloStatus] = useState<ZaloStatus>({ status: 'disconnected' });
   const [kiotStatus, setKiotStatus] = useState<KiotVietStatus>({ status: 'disconnected' });
   const [productCount, setProductCount] = useState(0);
   const [lastDemoResult, setLastDemoResult] = useState<DemoChatResponse | null>(null);
@@ -86,6 +100,8 @@ export default function App() {
     try {
       await apiRequest<{ status: string }>('/health');
       setBackendReady(true);
+      const zalo = await apiRequest<ZaloStatus>('/api/channels/zalo/connect/status');
+      setZaloStatus(zalo);
       const status = await apiRequest<KiotVietStatus>('/api/integrations/kiotviet/status');
       setKiotStatus(status);
       const products = await apiRequest<ProductItem[]>('/api/kiotviet/products');
@@ -105,6 +121,25 @@ export default function App() {
     return () => window.removeEventListener('popstate', syncPathname);
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const zaloConnected = params.get('zalo_connected');
+    const message = params.get('message');
+    if (zaloConnected === '1') {
+      notify('Đã kết nối Zalo OA thành công.');
+      setAppMode('connect-kiotviet');
+      void refreshBackendState();
+    } else if (zaloConnected === '0') {
+      notify(`Kết nối Zalo OA thất bại: ${message || 'Vui lòng thử lại bằng cách kết nối thủ công.'}`);
+      setAppMode('connect-zalo');
+    }
+    if (zaloConnected) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      setPathname(cleanUrl);
+    }
+  }, []);
+
   if (pathname === '/user_chat') {
     return <UserChatScreen />;
   }
@@ -120,15 +155,47 @@ export default function App() {
 
   const startDemo = () => {
     setToast(null);
-    setAppMode('connect-zalo');
+    if (zaloStatus.status === 'connected') {
+      setAppMode('connect-kiotviet');
+    } else {
+      setAppMode('connect-zalo');
+    }
   };
 
-  const completeConnection = (loadingMode: AppMode, nextMode: AppMode) => {
+  const startZaloConnection = async () => {
     setToast(null);
-    setAppMode(loadingMode);
-    window.setTimeout(() => {
-      setAppMode(nextMode);
-    }, 3000);
+    setAppMode('loading-zalo');
+    try {
+      const result = await apiRequest<ZaloConnectStartResponse>('/api/channels/zalo/connect/start');
+      window.location.href = result.authorize_url;
+    } catch (error) {
+      setAppMode('connect-zalo');
+      notify(error instanceof Error ? error.message : 'Không khởi tạo được kết nối Zalo.');
+    }
+  };
+
+  const connectZaloManual = async (payload: { accessToken: string; oaId: string }) => {
+    if (!payload.accessToken.trim()) {
+      notify('Bạn chưa nhập Access Token Zalo.');
+      return;
+    }
+    setToast(null);
+    setAppMode('loading-zalo');
+    try {
+      await apiRequest<ZaloManualConnectResponse>('/api/channels/zalo/connect/manual', {
+        method: 'POST',
+        body: JSON.stringify({
+          access_token: payload.accessToken.trim(),
+          oa_id: payload.oaId.trim() || undefined,
+        }),
+      });
+      await refreshBackendState();
+      setToast('Đã kết nối Zalo OA thủ công thành công.');
+      setAppMode('connect-kiotviet');
+    } catch (error) {
+      setAppMode('connect-zalo');
+      notify(error instanceof Error ? error.message : 'Không kết nối được Zalo OA thủ công.');
+    }
   };
 
   const completeKiotVietConnection = async (payload?: { retailer: string, client_id: string, client_secret: string }) => {
@@ -147,17 +214,14 @@ export default function App() {
       }
       await apiRequest('/api/integrations/kiotviet/sync-products', { method: 'POST' });
       await refreshBackendState();
-      window.setTimeout(() => setAppMode('connect-calendar'), 3000);
+      window.setTimeout(() => {
+        window.history.pushState({}, '', '/user_chat');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, 1200);
     } catch (error) {
       setAppMode('connect-kiotviet');
       notify(error instanceof Error ? error.message : 'Không kết nối được KiotViet');
     }
-  };
-
-  const enterDashboard = () => {
-    setToast(null);
-    setActiveScreen('overview');
-    setAppMode('dashboard');
   };
 
   const createWorkflowFromPrompt = (description: string) => {
@@ -199,16 +263,10 @@ export default function App() {
 
   if (appMode === 'connect-zalo') {
     return (
-      <OnboardingScreen
-        step={1}
-        totalSteps={3}
-        title="Kết nối Zalo OA"
-        subtitle="Agentify cần đọc tin nhắn từ Zalo OA để hiểu khách hàng và tự xử lý hội thoại."
-        systemName="Zalo OA"
-        systemDescription="Nhận tin nhắn, đồng bộ thông tin khách hàng và gửi xác nhận qua Zalo."
-        permissions={['Đọc hội thoại khách hàng', 'Gửi tin nhắn xác nhận và nhắc lịch', 'Đồng bộ tên và số điện thoại khách hàng']}
-        primaryLabel="Kết nối Zalo OA"
-        onPrimary={() => completeConnection('loading-zalo', 'connect-kiotviet')}
+      <ZaloConnectScreen
+        status={zaloStatus}
+        onPrimary={startZaloConnection}
+        onPrimaryManual={connectZaloManual}
         onBack={() => setAppMode('landing')}
       />
     );
@@ -234,29 +292,6 @@ export default function App() {
 
   if (appMode === 'loading-kiotviet') {
     return <ConnectionLoadingScreen title="Đang kết nối KiotViet" description="Agentify đang kiểm tra API, lấy dữ liệu dịch vụ và chuẩn bị workflow demo." />;
-  }
-
-  if (appMode === 'connect-calendar') {
-    return (
-      <OnboardingScreen
-        step={3}
-        totalSteps={3}
-        title="Kết nối Lịch Google"
-        subtitle="Bước này là tuỳ chọn. Kết nối lịch giúp AI kiểm tra khung giờ trống và tự tạo lịch hẹn."
-        systemName="Lịch Google"
-        systemDescription="Kiểm tra lịch trống, tạo lịch hẹn và đặt nhắc lịch trước giờ khách đến."
-        permissions={['Xem khung giờ trống', 'Tạo lịch hẹn mới', 'Đặt nhắc lịch cho khách và nhân viên']}
-        primaryLabel="Kết nối Lịch Google"
-        secondaryLabel="Bỏ qua bước này"
-        onPrimary={() => completeConnection('loading-calendar', 'dashboard')}
-        onSecondary={enterDashboard}
-        onBack={() => setAppMode('connect-kiotviet')}
-      />
-    );
-  }
-
-  if (appMode === 'loading-calendar') {
-    return <ConnectionLoadingScreen title="Đang kết nối Lịch Google" description="Agentify đang đồng bộ lịch hẹn và cấu hình nhắc lịch tự động." />;
   }
 
   return (
@@ -537,70 +572,133 @@ function ConnectionLoadingScreen({ title, description }: { title: string, descri
   );
 }
 
+function ZaloConnectScreen({
+  status,
+  onPrimary,
+  onPrimaryManual,
+  onBack,
+}: {
+  status: ZaloStatus,
+  onPrimary: () => void,
+  onPrimaryManual: (payload: { accessToken: string; oaId: string }) => void,
+  onBack: () => void,
+}) {
+  const [manualToken, setManualToken] = useState('');
+  const [manualOaId, setManualOaId] = useState('');
+  const isConnected = status.status === 'connected';
+
+  return (
+    <div className="size-full overflow-auto bg-[#f7faf8] text-slate-950">
+      <div className="mx-auto flex min-h-full max-w-6xl flex-col px-6 py-6">
+        <header className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">Agentify</div>
+              <div className="text-xs font-medium text-slate-500">Thiết lập demo: Bước 1/2</div>
+            </div>
+          </div>
+          <button onClick={onBack} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:text-teal-700">
+            Quay lại
+          </button>
+        </header>
+
+        <main className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.9fr_1.1fr]">
+          <section>
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 shadow-sm">
+              Bước 1/2
+            </div>
+            <h1 className="max-w-xl text-4xl font-bold tracking-tight text-slate-950 lg:text-5xl">Kết nối Zalo OA</h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
+              Kết nối Zalo OA để Agentify nhận và gửi tin nhắn thật trong luồng khách hàng.
+            </p>
+            <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-slate-700">Trạng thái</span>
+                <span className={`rounded-full px-3 py-1 text-xs font-bold ${isConnected ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}`}>
+                  {isConnected ? `Đã kết nối ${status.oa_id ? `(${status.oa_id})` : ''}` : 'Chưa kết nối'}
+                </span>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={onPrimary}
+                  className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700"
+                  disabled={isConnected}
+                >
+                  {isConnected ? 'Đã kết nối Zalo OA' : 'Kết nối Zalo OA bằng OAuth'}
+                </button>
+                <button
+                  onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+                  className="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 hover:border-teal-300 hover:text-teal-700"
+                >
+                  Kết nối thủ công
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl shadow-teal-900/10">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="mb-4">
+                <div className="text-sm font-semibold text-slate-500">Kết nối thủ công (fallback)</div>
+                <div className="mt-1 text-xl font-bold text-slate-950">Dùng khi test hoặc khi chưa có OAuth callback</div>
+              </div>
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Zalo Access Token</span>
+                <input
+                  value={manualToken}
+                  onChange={(event) => setManualToken(event.target.value)}
+                  type="password"
+                  placeholder="Nhập token truy cập OA"
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm"
+                />
+              </label>
+              <label className="mt-4 block">
+                <span className="text-sm font-semibold text-slate-700">OA ID (tuỳ chọn)</span>
+                <input
+                  value={manualOaId}
+                  onChange={(event) => setManualOaId(event.target.value)}
+                  placeholder="Nhập OA ID nếu có"
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm"
+                />
+              </label>
+              <button
+                onClick={() => onPrimaryManual({ accessToken: manualToken, oaId: manualOaId })}
+                className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+              >
+                Kết nối thủ công ngay
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  );
+}
+
 function UserChatScreen() {
   const [customerName, setCustomerName] = useState(() => window.localStorage.getItem('agentify_user_chat_customer_name') || '');
   const [customerPhone, setCustomerPhone] = useState(() => window.localStorage.getItem('agentify_user_chat_customer_phone') || '');
-  const [profileReady, setProfileReady] = useState(() => Boolean(window.localStorage.getItem('agentify_user_chat_customer_name') && window.localStorage.getItem('agentify_user_chat_customer_phone')));
   const [address, setAddress] = useState('12 Nguyễn Trãi, Hà Nội');
-  const [message, setMessage] = useState('');
-  const [products, setProducts] = useState<ProductItem[]>([]);
+  const [channelUserId, setChannelUserId] = useState(() => window.localStorage.getItem('agentify_user_chat_channel_user_id') || '');
+  const [profileReady, setProfileReady] = useState(() => Boolean(window.localStorage.getItem('agentify_user_chat_customer_name') && window.localStorage.getItem('agentify_user_chat_customer_phone')));
   const [conversationId, setConversationId] = useState<number | null>(() => {
     const saved = window.localStorage.getItem('agentify_user_chat_conversation_id');
     return saved ? Number(saved) : null;
   });
   const [messages, setMessages] = useState<UserChatMessage[]>([
-    { sender: 'ai', text: 'Chào chị, Lumi Beauty có thể hỗ trợ chị tư vấn sản phẩm, đặt hàng hoặc chăm sóc sau mua ạ.' }
+    { sender: 'ai', text: 'Chào chị, gửi tin nhắn một trong hai dạng mẫu phía dưới để em thử quy trình: có thể đặt hàng luôn, em sẽ thử tạo hóa đơn tạm tính trong hội thoại.' }
   ]);
-  const [actions, setActions] = useState<ChatAction[]>([]);
-  const [llmRecommendations, setLlmRecommendations] = useState<AgentChatResponse['recommended_products']>([]);
-  const [llmQuickReplies, setLlmQuickReplies] = useState<string[]>([]);
-  const [order, setOrder] = useState<ChatOrder | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<Recommendation | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(null);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [pendingPurchaseIntent, setPendingPurchaseIntent] = useState<string | null>(null);
-  const [pendingProduct, setPendingProduct] = useState<PendingProduct | null>(null);
-  const [pendingOrderMessage, setPendingOrderMessage] = useState<string | null>(null);
-  const [pendingOrderDraft, setPendingOrderDraft] = useState<PendingOrderDraft | null>(null);
-  const [deliveryPreference, setDeliveryPreference] = useState<string | null>(null);
-  const [appointment, setAppointment] = useState<{ name: string, time: string, service: string } | null>(null);
-  const [irritationVerified, setIrritationVerified] = useState(false);
-  const [showIrritationInfoRequest, setShowIrritationInfoRequest] = useState(false);
-  const [showSunscreens, setShowSunscreens] = useState(false);
-  const [showBudgetChoices, setShowBudgetChoices] = useState(false);
+  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actions, setActions] = useState<ChatAction[]>([]);
+  const [invoice, setInvoice] = useState<InvoicePayload | null>(null);
+  const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
+  const [invoiceDeliveredOrderId, setInvoiceDeliveredOrderId] = useState<number | null>(null);
 
-  const loadProducts = async () => {
-    let rows = await apiRequest<ProductItem[]>('/api/kiotviet/products');
-    if (rows.length === 0) {
-      await apiRequest('/api/demo/seed-cosmetics', { method: 'POST' });
-      rows = await apiRequest<ProductItem[]>('/api/kiotviet/products');
-    }
-    setProducts(rows.filter((product) => !product.name.toLowerCase().includes('bánh')).slice(0, 28));
-  };
-
-  useEffect(() => {
-    loadProducts().catch(() => setError('Chưa kết nối được backend. Hãy chạy docker compose trước.'));
-  }, []);
-
-  const appendAi = (text: string) => setMessages((current) => [...current, { sender: 'ai', text }]);
-  const appendCustomer = (text: string) => setMessages((current) => [...current, { sender: 'customer', text }]);
-  const buildOrderIntent = (product: PendingProduct | null, fallback: string | null) => {
-    if (product?.name) return `Đặt cho chị 1 ${product.name}`;
-    return fallback || '';
-  };
-  const parseDeliveryDetails = (text: string) => {
-    const cleaned = text.trim().replace(/\s+/g, ' ');
-    const withoutPrefix = cleaned.replace(/^(?:giao\s*(?:tới|đến)|địa chỉ|dia chi)\s*[:,]?\s*/i, '');
-    const marker = withoutPrefix.match(/(?:,\s*)?(nhận\s*(?:hàng)?\s*(?:vào|lúc|giờ)|nhan\s*(?:hang)?\s*(?:vao|luc|gio)|giờ\s+nhận|gio\s+nhan|giờ\s+hành\s+chính|gio\s+hanh\s+chinh).*/i);
-    if (!marker || marker.index === undefined) {
-      return { shippingAddress: withoutPrefix.replace(/[,.]\s*$/, '').trim(), deliveryPreference: null };
-    }
-    const shippingAddress = withoutPrefix.slice(0, marker.index).replace(/[,.]\s*$/, '').trim();
-    const deliveryPreference = withoutPrefix.slice(marker.index).replace(/^,\s*/, '').trim();
-    return { shippingAddress, deliveryPreference };
-  };
   const rememberConversation = (id: number | null | undefined) => {
     if (!id) return;
     setConversationId(id);
@@ -611,308 +709,62 @@ function UserChatScreen() {
     const name = customerName.trim();
     const phone = customerPhone.trim();
     if (!name || !phone) {
-      setError('Chị vui lòng nhập tên và số điện thoại để Lumi hỗ trợ đúng đơn hàng.');
+      setError('Vui lòng nhập tên và số điện thoại để gửi đúng khách hàng.');
       return;
     }
-    const oldPhone = window.localStorage.getItem('agentify_user_chat_customer_phone');
     window.localStorage.setItem('agentify_user_chat_customer_name', name);
     window.localStorage.setItem('agentify_user_chat_customer_phone', phone);
+    window.localStorage.setItem('agentify_user_chat_channel_user_id', channelUserId);
     setCustomerName(name);
     setCustomerPhone(phone);
-    if (oldPhone && oldPhone !== phone) {
-      window.localStorage.removeItem('agentify_user_chat_conversation_id');
-      setConversationId(null);
-      setMessages([{ sender: 'ai', text: `Chào chị ${name}, Lumi Beauty có thể hỗ trợ chị tư vấn sản phẩm, đặt hàng hoặc chăm sóc sau mua ạ.` }]);
-    } else if (messages.length === 1) {
-      setMessages([{ sender: 'ai', text: `Chào chị ${name}, Lumi Beauty có thể hỗ trợ chị tư vấn sản phẩm, đặt hàng hoặc chăm sóc sau mua ạ.` }]);
-    }
     setError(null);
     setProfileReady(true);
+    setMessages([{ sender: 'ai', text: `Chào chị ${name}, em sẵn sàng nhận tin nhắn và lên hóa đơn cho shop thử nha.` }]);
   };
 
-  const startSunscreenScenario = () => {
-    const text = 'Chị cần tư vấn kem chống nắng';
-    appendCustomer(text);
-    setShowSunscreens(true);
-    setShowBudgetChoices(false);
-    setAppointment(null);
-    setIrritationVerified(false);
-    setShowIrritationInfoRequest(false);
-    setOrder(null);
-    setActions([
-      { type: 'intent_detected', status: 'success', summary: 'Nhận diện ý định: tư vấn kem chống nắng' },
-      { type: 'product_recommendation', status: 'success', summary: 'Đã lọc top 5 sản phẩm chống nắng phù hợp từ KiotViet' }
-    ]);
-    appendAi(`Dạ chị ${customerName}, em gửi chị 5 kem chống nắng đang bán tốt tại spa. Trước khi chốt sản phẩm, chị cho em biết da mình thuộc nhóm nào để em tư vấn đúng hơn: da dầu, da mụn, da khô hay da nhạy cảm ạ?`);
-  };
+  const appendAi = (text: string) => setMessages((current) => [...current, { sender: 'ai', text }]);
+  const appendCustomer = (text: string) => setMessages((current) => [...current, { sender: 'customer', text }]);
 
-  const chooseSkinType = (skinType: string) => {
-    appendCustomer(`Da chị là ${skinType}`);
-    setShowBudgetChoices(true);
-    appendAi(`Dạ chị ${customerName}, với ${skinType}, em sẽ ưu tiên sản phẩm ít gây bí da, không làm nặng mặt và phù hợp dùng hằng ngày. Chị muốn chọn theo mức giá nào ạ?`);
-  };
-
-  const chooseBudget = (label: string, product: Recommendation) => {
-    setSelectedProduct(product);
-    setShowBudgetChoices(false);
-    appendCustomer(`Chị chọn mức ${label}`);
-    appendAi(`Em đề xuất tốt nhất cho chị ${customerName} là ${product.name}. Giá ${product.price.toLocaleString('vi-VN')}đ. Sản phẩm này phù hợp vì ${product.fit.toLowerCase()}. Nếu chị đồng ý, chị xác nhận giúp em họ tên, số điện thoại và địa chỉ giao hàng nhé.`);
-  };
-
-  const confirmCustomerInfo = () => {
-    if (!selectedProduct) return;
-    appendCustomer(`${customerName}, ${customerPhone}, ${address}`);
-    appendAi(`Em xác nhận đơn của chị:\n- Sản phẩm: ${selectedProduct.name}\n- Số lượng: 1\n- Người nhận: ${customerName}\n- SĐT: ${customerPhone}\n- Địa chỉ: ${address}\nChị chọn hình thức thanh toán giúp em ạ.`);
-  };
-
-  const createOrder = async (method: Exclude<PaymentMethod, null>) => {
-    if (!selectedProduct) return;
-    setPaymentMethod(method);
-    const methodText = method === 'cod' ? 'thanh toán khi nhận hàng' : 'thanh toán trước bằng QR';
-    appendCustomer(`Chị chọn ${methodText}`);
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await apiRequest<DemoChatResponse>('/api/channels/demo/messages', {
-        method: 'POST',
-        body: JSON.stringify({
-          conversation_id: conversationId,
-          customer_name: customerName,
-          customer_phone: customerPhone,
-          message: `Đặt cho chị 1 ${selectedProduct.name}, giao tới ${address}`
-        })
-      });
-      rememberConversation(result.conversation_id);
-      setOrder(result.order);
-      setActions(result.actions);
-      appendAi(method === 'prepaid'
-        ? 'Dạ em đã tạo hóa đơn tạm tính và gửi QR thanh toán trong khung chat. Sau khi chị chuyển khoản, spa sẽ xác nhận và đóng gói đơn. Em cảm ơn chị.'
-        : 'Dạ em đã tạo hóa đơn tạm tính. Đơn của chị sẽ được thanh toán khi nhận hàng. Em cảm ơn chị.');
-      appendAi('Dự kiến đơn sẽ đến trong 2-3 ngày làm việc. Nếu cần đổi địa chỉ, chị nhắn lại cho em trước khi đơn được bàn giao vận chuyển ạ. Lumi cảm ơn chị.');
-    } catch (err) {
-      const fallback = err instanceof Error ? err.message : 'Không tạo được đơn.';
-      setError(fallback);
-      appendAi(fallback);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const startIrritationScenario = () => {
-    appendCustomer('Chị mua sữa rửa mặt bên em xong bị rát và hơi đỏ da');
-    setShowSunscreens(false);
-    setShowBudgetChoices(false);
-    setOrder(null);
-    setSelectedProduct(null);
-    setAppointment(null);
-    setIrritationVerified(false);
-    setShowIrritationInfoRequest(true);
-    setActions([
-      { type: 'intent_detected', status: 'success', summary: 'Nhận diện tình huống sau mua: khách có dấu hiệu kích ứng' },
-      { type: 'handoff_safety', status: 'success', summary: 'Áp dụng kịch bản an toàn: trấn an, hướng dẫn tạm ngưng và cần xác minh đơn hàng' }
-    ]);
-    appendAi('Dạ em rất tiếc vì chị đang bị rát và đỏ da. Chị tạm ngưng dùng sản phẩm, rửa mặt bằng nước mát, tránh tẩy da chết/treatment trong 24-48 giờ và không tự bôi thêm hoạt chất mạnh giúp em nhé. Lumi Beauty sẽ hỗ trợ chị kiểm tra da miễn phí tại trung tâm để xác định nguyên nhân và đổi hướng chăm sóc phù hợp.');
-    appendAi('Để em tra lại đơn hàng và chuyển đúng hồ sơ cho chuyên viên, chị cho em xin một trong các thông tin sau nhé: mã đơn hàng, số điện thoại mua hàng, hoặc họ tên người nhận. Nếu đúng số điện thoại đang chat là số mua hàng, chị bấm “Dùng số điện thoại này”.');
-  };
-
-  const verifyIrritationCustomer = (source: string) => {
-    appendCustomer(source);
-    setIrritationVerified(true);
-    setShowIrritationInfoRequest(false);
-    setActions((current) => [
-      ...current,
-      { type: 'customer_lookup', status: 'success', summary: `Đã xác minh hồ sơ khách hàng: ${customerName} - ${customerPhone}` },
-      { type: 'order_lookup', status: 'success', summary: 'Đã tìm thấy đơn sữa rửa mặt dịu nhẹ cho da nhạy cảm trong lịch sử mua hàng' }
-    ]);
-    appendAi(`Dạ em đã tìm thấy hồ sơ của chị ${customerName} với số ${customerPhone}. Đơn gần nhất là sữa rửa mặt dịu nhẹ cho da nhạy cảm. Em đã ghi nhận phản hồi kích ứng vào hồ sơ chăm sóc sau mua.`);
-    appendAi('Bên em mời chị ghé trung tâm kiểm tra da miễn phí. Chị muốn ghé vào khung nào ạ? Em có thể giữ lịch chiều nay 16:30, tối nay 19:00 hoặc sáng mai 09:30.');
-  };
-
-  const bookAppointment = (time: string) => {
-    if (!irritationVerified) {
-      appendAi('Dạ trước khi đặt lịch, em cần xác minh thông tin mua hàng để chuyên viên có đủ hồ sơ sản phẩm chị đã dùng ạ.');
-      setShowIrritationInfoRequest(true);
-      return;
-    }
-    appendCustomer(`Chị muốn đặt lịch ${time}`);
-    setAppointment({ name: customerName, time, service: 'Kiểm tra kích ứng da miễn phí' });
-    setActions((current) => [...current, { type: 'appointment_create', status: 'success', summary: `Đã tạo lịch kiểm tra miễn phí: ${time}` }]);
-    appendAi(`Dạ em đã giữ lịch ${time} cho chị tại Lumi Beauty. Khi đến chị mang theo sản phẩm đã dùng và hình ảnh tình trạng da nếu có. Lịch này hoàn toàn miễn phí, chuyên viên sẽ kiểm tra và tư vấn hướng xử lý an toàn cho chị ạ.`);
-  };
-
-  const askBackendAgent = async (text: string) => {
-    setLoading(true);
-    setError(null);
-    setOrder(null);
-    setShowSunscreens(false);
-    setShowBudgetChoices(false);
-    setShowIrritationInfoRequest(false);
-    setAppointment(null);
-    setLlmRecommendations([]);
-    setLlmQuickReplies([]);
-    try {
-      const result = await apiRequest<AgentChatResponse>('/api/agent/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          conversation_id: conversationId,
-          customer_name: customerName,
-          customer_phone: customerPhone,
-          message: text
-        })
-      });
-      rememberConversation(result.conversation_id);
-      appendAi(result.reply);
-      setLlmRecommendations(result.recommended_products);
-      setLlmQuickReplies(result.quick_replies);
-      if (result.recommended_products.length > 0) {
-        const top = result.recommended_products[0];
-        setPendingProduct({ name: top.name, price: top.price, stock: top.stock });
-      }
-      setActions(result.actions.map((summary, index) => ({
-        type: index === 0 ? 'intent_detected' : 'llm_action',
-        status: 'success',
-        summary
-      })));
-    } catch (err) {
-      const fallback = err instanceof Error ? err.message : 'Hiện chưa xử lý được tin nhắn. Chị thử gửi lại giúp em nhé.';
-      setError(fallback);
-      appendAi(fallback);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const messageHasShippingInfo = (text: string) => {
-    const normalized = text.toLowerCase();
-    return normalized.includes('giao') || normalized.includes('địa chỉ') || normalized.includes('dia chi') || normalized.includes('nhận hàng') || normalized.includes('nhan hang');
-  };
-
-  const createDirectOrderFromMessage = async (text: string, forceCreate = false) => {
-    if (!forceCreate && !messageHasShippingInfo(text)) {
-      setPendingOrderMessage(text);
-      setPendingOrderDraft(null);
-      setDeliveryPreference(null);
-      appendAi(`Dạ chị ${customerName}, Lumi đã có tên và số điện thoại của chị rồi. Chị cho em xin địa chỉ giao hàng và khung giờ chị có thể nhận hàng ạ. Em cảm ơn chị.`);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setOrder(null);
-    setLlmRecommendations([]);
-    setLlmQuickReplies([]);
-    try {
-      const result = await apiRequest<DemoChatResponse>('/api/channels/demo/messages', {
-        method: 'POST',
-        body: JSON.stringify({
-          conversation_id: conversationId,
-          customer_name: customerName,
-          customer_phone: customerPhone,
-          message: text
-        })
-      });
-      rememberConversation(result.conversation_id);
-      appendAi(result.reply);
-      setOrder(result.order);
-      setPaymentMethod(null);
-      setPaymentConfirmed(false);
-      setPendingOrderMessage(null);
-      setPendingOrderDraft(null);
-      setActions(result.actions);
-      if (result.order) {
-        appendAi(`Dạ chị ${customerName}, em đã tạo hóa đơn tạm tính trong khung chat. Chị chọn giúp em thanh toán khi nhận hàng hoặc thanh toán trước bằng QR nhé. Em cảm ơn chị.`);
-      }
-    } catch (err) {
-      const fallback = err instanceof Error ? err.message : 'Không tạo được đơn.';
-      setError(fallback);
-      appendAi(fallback);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const consultBeforeOrder = async (text: string) => {
-    setPendingPurchaseIntent(text);
-    await askBackendAgent(text.replace(/^(đặt|dat|mua|lấy|lay)\s+/i, 'Tư vấn '));
-    appendAi(`Nếu chị ${customerName} muốn đặt sản phẩm này, chị nhắn "Đồng ý đặt" giúp em. Sau đó Lumi sẽ xin địa chỉ và khung giờ nhận hàng để lên đơn ạ. Em cảm ơn chị.`);
-  };
-
-  const beginPendingOrder = () => {
-    const intent = buildOrderIntent(pendingProduct, pendingPurchaseIntent);
-    if (!intent) {
-      appendAi(`Dạ chị ${customerName}, chị muốn đặt sản phẩm nào ạ? Em cảm ơn chị.`);
-      return;
-    }
-    createDirectOrderFromMessage(intent);
-    setPendingPurchaseIntent(null);
-  };
-
-  const confirmPendingOrder = () => {
-    if (!pendingOrderDraft) return;
-    createDirectOrderFromMessage(`${pendingOrderDraft.intent}, giao tới ${pendingOrderDraft.shippingAddress}`, true);
-  };
-
-  const choosePaymentFromText = (text: string) => {
-    if (!order) return false;
-    const lower = text.toLowerCase();
-    if (lower.includes('chuyển rồi') || lower.includes('chuyen roi') || lower.includes('đã chuyển') || lower.includes('da chuyen') || lower.includes('đã thanh toán') || lower.includes('da thanh toan')) {
-      setPaymentMethod('prepaid');
-      setPaymentConfirmed(true);
-      appendAi(`Dạ em đã nhận được thanh toán cho đơn #${order.id}. Em gửi lại hóa đơn đã thanh toán trong khung chat. Đơn dự kiến giao trong 2-3 ngày làm việc. Lumi cảm ơn chị ${customerName}, chị còn quan tâm thêm sản phẩm nào khác không ạ?`);
-      return true;
-    }
-    if (lower.includes('qr') || lower.includes('chuyển khoản') || lower.includes('chuyen khoan') || lower.includes('thanh toán ngay') || lower.includes('thanh toan ngay') || lower.includes('trả trước') || lower.includes('tra truoc')) {
-      setPaymentMethod('prepaid');
-      setPaymentConfirmed(false);
-      appendAi(`Dạ em đã cập nhật đơn #${order.id} sang thanh toán trước và gửi QR trong hóa đơn ạ. Sau khi chị chuyển khoản, chị nhắn "chị đã chuyển rồi" để em xác nhận nhé. Em cảm ơn chị.`);
-      return true;
-    }
-    if (lower.includes('cod') || lower.includes('thanh toán khi nhận') || lower.includes('thanh toan khi nhan') || lower.includes('trả sau') || lower.includes('tra sau')) {
-      setPaymentMethod('cod');
-      setPaymentConfirmed(false);
-      appendAi(`Dạ em đã cập nhật đơn #${order.id} thanh toán khi nhận hàng. Đơn dự kiến giao trong 2-3 ngày làm việc. Lumi cảm ơn chị ${customerName}, chị còn quan tâm thêm sản phẩm nào khác không ạ?`);
-      return true;
-    }
-    return false;
-  };
-
-  const sendMessage = async () => {
-    const text = message.trim();
-    if (!text) return;
-    const lower = text.toLowerCase();
+  const sendToAgent = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    window.localStorage.setItem('agentify_user_chat_channel_user_id', channelUserId);
+    appendCustomer(trimmed);
     setMessage('');
-    appendCustomer(text);
-    if (choosePaymentFromText(text)) {
-      return;
-    }
-    if (pendingOrderDraft && (lower.includes('xác nhận') || lower.includes('xac nhan') || lower.includes('đồng ý') || lower.includes('dong y') || lower.includes('đúng') || lower.includes('dung') || lower.includes('ok'))) {
-      confirmPendingOrder();
-      return;
-    }
-    if (pendingOrderMessage) {
-      const details = parseDeliveryDetails(text);
-      if (!details.shippingAddress) {
-        appendAi(`Dạ chị ${customerName}, chị gửi giúp em địa chỉ giao hàng cụ thể để Lumi lên đơn nhé. Em cảm ơn chị.`);
-        return;
+    setLoading(true);
+    setError(null);
+    setInvoice(null);
+    setInvoiceDeliveredOrderId(null);
+    setUiEvents([]);
+    setError(null);
+    try {
+      const result = await apiRequest<DemoChatResponse>('/api/channels/zalo/messages', {
+        method: 'POST',
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          message: trimmed,
+          ...(channelUserId ? { channel_user_id: channelUserId } : {}),
+        })
+      });
+      rememberConversation(result.conversation_id);
+      appendAi(result.reply);
+      setActions(result.actions || []);
+      setInvoice(result.invoice);
+      setUiEvents(result.ui_events || []);
+      if (result.invoice) {
+        appendAi(`Dạ em đã tạo hóa đơn tạm tính #${result.invoice.order_id} trong hội thoại.`);
+        appendAi(`Đã gửi hóa đơn tạm tính #${result.invoice.order_id} lại cho khách qua luồng Zalo OA.`);
+        setInvoiceDeliveredOrderId(result.invoice.order_id);
       }
-      setDeliveryPreference(details.deliveryPreference);
-      setPendingOrderDraft({ intent: pendingOrderMessage, shippingAddress: details.shippingAddress, deliveryPreference: details.deliveryPreference });
-      setPendingOrderMessage(null);
-      appendAi(`Dạ chị ${customerName}, em xác nhận lại thông tin đơn hàng:\n- Sản phẩm: ${pendingProduct?.name || pendingOrderMessage.replace(/^Đặt cho chị 1\s*/i, '')}\n- Người nhận: ${customerName}\n- Số điện thoại: ${customerPhone}\n- Địa chỉ: ${details.shippingAddress}${details.deliveryPreference ? `\n- Khung giờ nhận hàng: ${details.deliveryPreference}` : ''}\nChị nhắn "Xác nhận đơn hàng" để em tạo hóa đơn tạm tính nhé. Em cảm ơn chị.`);
-      return;
+    } catch (err) {
+      const fallback = err instanceof Error ? err.message : 'Không gửi được tin nhắn';
+      setError(fallback);
+      appendAi(fallback);
+    } finally {
+      setLoading(false);
     }
-    if ((pendingPurchaseIntent || pendingProduct) && (lower.includes('đặt mua') || lower.includes('mua ngay') || lower.includes('đồng ý') || lower.includes('dong y') || lower.includes('chốt') || lower.includes('chot') || lower.includes('ok'))) {
-      beginPendingOrder();
-      return;
-    }
-    if (lower.includes('dat lich') || lower.includes('đặt lịch')) {
-      startIrritationScenario();
-      return;
-    }
-    if (lower.includes('đặt') || lower.includes('dat') || lower.includes('mua') || lower.includes('lấy')) {
-      consultBeforeOrder(text);
-      return;
-    }
-    askBackendAgent(text);
   };
 
   if (!profileReady) {
@@ -955,6 +807,16 @@ function UserChatScreen() {
                 inputMode="tel"
               />
             </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">Zalo User ID (tuỳ chọn để test gửi hóa đơn)</span>
+              <input
+                value={channelUserId}
+                onChange={(event) => setChannelUserId(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
+                placeholder="Ví dụ: 1234567890"
+                inputMode="text"
+              />
+            </label>
           </div>
           {error && <div className="mt-4 rounded-xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
           <button className="mt-6 w-full rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700">
@@ -967,158 +829,125 @@ function UserChatScreen() {
 
   return (
     <div className="size-full bg-[#eef5f1] text-slate-950">
-      <main className="mx-auto flex h-full min-h-screen w-full max-w-3xl flex-col bg-white shadow-xl shadow-slate-200/80 sm:my-6 sm:h-[calc(100vh-48px)] sm:min-h-0 sm:rounded-[28px] sm:border sm:border-slate-200">
-        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:rounded-t-[28px] sm:px-5">
+      <main className="mx-auto flex h-full min-h-screen w-full max-w-3xl flex-col bg-white shadow-xl shadow-slate-200/80 sm:my-6 sm:h-[calc(100vh-48px)] sm:min-h-0 sm:rounded-2xl sm:border sm:border-slate-200">
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-4 sm:rounded-t-2xl sm:px-5">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-600 text-white">
             <Zap className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-lg font-bold text-slate-950">Lumi Beauty</div>
-            <div className="flex items-center gap-2 text-xs font-medium text-teal-700">
-              <span className="h-2 w-2 rounded-full bg-teal-500" />
-              Thường phản hồi ngay
-            </div>
+            <div className="text-lg font-bold text-slate-950">Lumi Beauty · Chat Demo</div>
+            <div className="text-xs text-slate-500">Chat demo trên Zalo</div>
           </div>
-          <button
-            onClick={() => setProfileReady(false)}
-            className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-teal-300 hover:text-teal-700"
-          >
+          <button onClick={() => setProfileReady(false)} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-teal-300 hover:text-teal-700">
             {customerName} · Sửa
           </button>
         </header>
 
-        <div className="flex-1 space-y-4 overflow-auto bg-[#f8faf9] px-4 py-5 sm:px-5">
-            {messages.map((item, index) => (
-              <ChatMessage key={index} sender={item.sender === 'customer' ? 'customer' : 'ai'} text={item.text} />
-            ))}
-            {loading && <ChatMessage sender="ai" text="Em đang kiểm tra sản phẩm và tồn kho cho chị..." />}
-            {llmRecommendations.length > 0 && (
-              <LlmProductPanel
-                products={llmRecommendations}
-                onChoose={(product) => {
-                  setPendingProduct({ name: product.name, price: product.price, stock: product.stock });
-                  setPendingPurchaseIntent(`Đặt cho chị 1 ${product.name}`);
-                  appendCustomer(product.name);
-                  appendAi(`Dạ chị ${customerName}, em có sẵn sản phẩm ${product.name} đang còn hàng ạ. Sản phẩm này phù hợp với nhu cầu chị vừa mô tả. Chị có muốn đặt mua không ạ? Em cảm ơn chị.`);
-                }}
-              />
-            )}
-            {llmQuickReplies.length > 0 && (
-              <QuickReplyGroup
-                title="Gợi ý trả lời nhanh"
-                options={llmQuickReplies}
-                onChoose={(option) => {
-                  setMessage('');
-                  appendCustomer(option);
-                  askBackendAgent(option);
-                }}
-              />
-            )}
-            {showSunscreens && <RecommendationPanel recommendations={sunscreenRecommendations} onChoose={setSelectedProduct} />}
-            {showSunscreens && (
-              <QuickReplyGroup
-                title="Chọn tình trạng da"
-                options={['Da dầu', 'Da mụn', 'Da khô', 'Da nhạy cảm']}
-                onChoose={chooseSkinType}
-              />
-            )}
-            {showBudgetChoices && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="mb-3 font-semibold text-slate-900">Chọn mức giá</div>
-                <div className="grid gap-2 md:grid-cols-3">
-                  <button onClick={() => chooseBudget('tiết kiệm dưới 300.000đ', sunscreenRecommendations[0])} className="rounded-xl border border-slate-200 p-3 text-left hover:border-teal-300 hover:bg-teal-50">
-                    <div className="font-semibold">Tiết kiệm</div>
-                    <div className="text-sm text-slate-500">Dưới 300.000đ</div>
-                  </button>
-                  <button onClick={() => chooseBudget('cân bằng 300.000-380.000đ', sunscreenRecommendations[1])} className="rounded-xl border border-slate-200 p-3 text-left hover:border-teal-300 hover:bg-teal-50">
-                    <div className="font-semibold">Cân bằng</div>
-                    <div className="text-sm text-slate-500">300.000-380.000đ</div>
-                  </button>
-                  <button onClick={() => chooseBudget('cao cấp trên 380.000đ', sunscreenRecommendations[4])} className="rounded-xl border border-slate-200 p-3 text-left hover:border-teal-300 hover:bg-teal-50">
-                    <div className="font-semibold">Cao cấp</div>
-                    <div className="text-sm text-slate-500">Trên 380.000đ</div>
-                  </button>
-                </div>
-              </div>
-            )}
-            {selectedProduct && !order && (
-              <div className="rounded-2xl border border-teal-200 bg-white p-4">
-                <div className="font-semibold text-slate-900">Xác nhận thông tin nhận hàng</div>
-                <p className="mt-2 text-sm text-slate-600">{customerName} - {customerPhone} - {address}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button onClick={confirmCustomerInfo} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Gửi thông tin nhận hàng</button>
-                  <button onClick={() => createOrder('cod')} className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">Thanh toán khi nhận hàng</button>
-                  <button onClick={() => createOrder('prepaid')} className="rounded-lg bg-slate-950 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800">Thanh toán trước bằng QR</button>
-                </div>
-              </div>
-            )}
-            {order && (
-              <InvoiceCard
-                order={order}
-                paymentMethod={paymentMethod}
-                paymentConfirmed={paymentConfirmed}
-                eta="2-3 ngày làm việc"
-                deliveryPreference={deliveryPreference}
-                onPaymentChange={(method) => {
-                  setPaymentMethod(method);
-                  setPaymentConfirmed(false);
-                  appendCustomer(method === 'prepaid' ? 'Chị chọn thanh toán trước bằng QR' : 'Chị chọn thanh toán khi nhận hàng');
-                  appendAi(method === 'prepaid'
-                    ? `Dạ em đã cập nhật đơn #${order.id} sang thanh toán trước và gửi QR trong hóa đơn ạ. Sau khi chị chuyển khoản, chị nhắn "chị đã chuyển rồi" để em xác nhận nhé. Em cảm ơn chị.`
-                    : `Dạ em đã cập nhật đơn #${order.id} thanh toán khi nhận hàng. Đơn dự kiến giao trong 2-3 ngày làm việc. Lumi cảm ơn chị ${customerName}, chị còn quan tâm thêm sản phẩm nào khác không ạ.`);
-                }}
-              />
-            )}
-            {showIrritationInfoRequest && (
-              <div className="rounded-2xl border border-coral-200 bg-white p-4">
-                <div className="font-semibold text-slate-900">Xác minh thông tin mua hàng</div>
-                <p className="mt-2 text-sm text-slate-600">Lumi cần mã đơn, số điện thoại mua hàng hoặc họ tên người nhận để mở đúng hồ sơ trước khi đặt lịch kiểm tra.</p>
-                <div className="mt-3 grid gap-2 md:grid-cols-3">
-                  <button onClick={() => verifyIrritationCustomer(`Dùng số điện thoại ${customerPhone}`)} className="rounded-lg bg-teal-600 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-700">Dùng số điện thoại này</button>
-                  <button onClick={() => verifyIrritationCustomer('Mã đơn: KV-MP020-1024')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Nhập mã đơn mẫu</button>
-                  <button onClick={() => verifyIrritationCustomer(`Người nhận: ${customerName}`)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-50">Dùng họ tên</button>
-                </div>
-              </div>
-            )}
-            {!appointment && irritationVerified && (
-              <QuickReplyGroup
-                title="Chọn lịch kiểm tra miễn phí"
-                options={['Chiều nay 16:30', 'Tối nay 19:00', 'Sáng mai 09:30']}
-                onChoose={bookAppointment}
-              />
-            )}
-            {appointment && <AppointmentCard appointment={appointment} />}
-            {error && <div className="max-w-[82%] rounded-2xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
-          </div>
+        <div className="p-4 border-b border-slate-200 bg-slate-50 text-sm text-slate-700">
+          <label className="block">
+            <span className="font-semibold">Địa chỉ nhận hàng mặc định</span>
+            <input value={address} onChange={(event) => setAddress(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+          </label>
+        </div>
 
-          <footer className="border-t border-slate-200 bg-white px-4 py-4 sm:rounded-b-[28px] sm:px-5">
-            <div className="mb-3 flex flex-wrap gap-2">
-              {['Tư vấn kem chống nắng', 'Da chị bị kích ứng sau sữa rửa mặt', 'Đặt serum vitamin C'].map((item) => (
-                <button key={item} onClick={() => setMessage(item)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
-                  {item}
-                </button>
-              ))}
+        <div className="flex-1 space-y-4 overflow-auto bg-[#f8faf9] px-4 py-5 sm:px-5">
+          {messages.map((item, index) => (
+            <ChatMessage key={index} sender={item.sender === 'customer' ? 'customer' : 'ai'} text={item.text} />
+          ))}
+          {loading && <ChatMessage sender="ai" text="Đang gửi tin nhắn và xử lý đơn..." />}
+
+          {!!invoice && (
+            <div className="rounded-2xl border border-teal-200 bg-white p-4">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-slate-900">Hóa đơn #{invoice.order_id}</h4>
+                <span className="text-xs rounded-full bg-teal-50 px-2 py-1 text-teal-700">{invoice.status}</span>
+              </div>
+              <div className="mt-3 space-y-2">
+                {invoice.items.map((item, index) => (
+                  <div key={index} className="flex justify-between text-sm">
+                    <span>{item.name} x {item.quantity}</span>
+                    <span>{Number(item.line_total).toLocaleString('vi-VN')}đ</span>
+                  </div>
+                ))}
+                <div className="border-t pt-2 font-semibold text-teal-800 flex justify-between">
+                  <span>Tổng</span>
+                  <span>{Number(invoice.total).toLocaleString('vi-VN')} {invoice.currency}</span>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-slate-600">Khách: {invoice.customer_name || customerName} · {invoice.customer_phone || customerPhone}</div>
+              <div className="mt-1 text-xs text-slate-600">Địa chỉ: {invoice.shipping_address || address}</div>
             </div>
-            <div className="flex items-end gap-3">
-              <textarea
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    sendMessage();
-                  }
+          )}
+
+          {!!invoice && invoiceDeliveredOrderId !== invoice.order_id && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="text-sm font-semibold text-emerald-900">Bước tiếp theo của agent</div>
+              <p className="mt-1 text-sm text-emerald-800">Kéo nhanh để mô phỏng việc gửi hóa đơn về cho khách trên Zalo OA.</p>
+              <button
+                onClick={() => {
+                  setInvoiceDeliveredOrderId(invoice?.order_id || null);
+                  appendAi(`Em đã gửi hóa đơn #${invoice?.order_id || ''} lại vào luồng chat Zalo OA cho khách.`);
                 }}
-                rows={2}
-                className="max-h-32 min-h-[52px] flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
-                placeholder="Nhập tin nhắn..."
-              />
-              <button onClick={sendMessage} disabled={loading} className="h-[52px] rounded-2xl bg-teal-600 px-5 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700 disabled:opacity-60">
-                {loading ? 'Đang gửi' : 'Gửi'}
+                className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+              >
+                Gửi hóa đơn cho khách
               </button>
             </div>
-          </footer>
-        </main>
+          )}
+
+          {!!invoice && invoiceDeliveredOrderId === invoice.order_id && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Đã gửi hóa đơn tạm tính cho khách bằng kênh Zalo OA.</div>
+          )}
+
+          {!!uiEvents.length && (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="mb-2 text-sm font-semibold text-slate-900">Những gì đã xảy ra</div>
+              {uiEvents.map((event, index) => (
+                <div key={`${event.type}-${index}`} className="mb-2 text-sm text-slate-700">• {event.title}: {event.detail}</div>
+              ))}
+            </div>
+          )}
+
+          {error && <div className="rounded-2xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
+        </div>
+
+        <div className="p-4 border-t border-slate-200 bg-white sm:rounded-b-[28px]">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button onClick={() => sendToAgent('Đặt cho em 1 serum vitamin C, giao tới ' + address + ', SĐT ' + customerPhone)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
+              Gửi mẫu: đặt serum
+            </button>
+            <button onClick={() => sendToAgent('Đặt cho chị 1 kem chống nắng dịu nhẹ, giao tới ' + address + ', SĐT ' + customerPhone)} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
+              Gửi mẫu: đặt kem chống nắng
+            </button>
+            <button onClick={() => setActions([])} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-teal-50 hover:text-teal-700">
+              Xóa lịch sử hành động
+            </button>
+          </div>
+          <div className="flex items-end gap-3">
+            <textarea
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  sendToAgent(message);
+                }
+              }}
+              rows={2}
+              className="max-h-32 min-h-[52px] flex-1 resize-none rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none"
+              placeholder="Nhập tin nhắn khách hàng..."
+            />
+            <button onClick={() => sendToAgent(message)} disabled={loading} className="h-[52px] rounded-2xl bg-teal-600 px-5 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700 disabled:opacity-60">
+              {loading ? 'Đang gửi' : 'Gửi'}
+            </button>
+          </div>
+          {!!actions.length && (
+            <div className="mt-3 rounded-xl bg-white border border-slate-200 p-3 text-xs text-slate-600">
+              <strong>Action gần nhất:</strong> {actions.map((item) => item.summary).join(' | ')}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
@@ -1166,7 +995,7 @@ function KiotVietConnectScreen({
         <main className="grid flex-1 items-center gap-10 py-12 lg:grid-cols-[0.9fr_1.1fr]">
           <section>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-semibold text-teal-700 shadow-sm">
-              Bước 2/3
+              Bước 2/2
             </div>
             <h1 className="max-w-xl text-4xl font-bold tracking-tight text-slate-950 lg:text-5xl">Kết nối KiotViet thật</h1>
             <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
@@ -1239,198 +1068,64 @@ function KiotVietConnectScreen({
 }
 
 function LandingPage({ onEnterDemo, onNotify }: { onEnterDemo: () => void, onNotify: (message: string) => void }) {
-  const openShopChat = () => {
-    window.history.pushState(null, '', '/user_chat');
-    window.dispatchEvent(new PopStateEvent('popstate'));
-  };
-
   return (
-    <div className="min-h-full">
-      <header className="sticky top-0 z-40 border-b border-teal-900/10 bg-[#f7faf8]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+    <div className="min-h-screen bg-[#eef6f3] text-slate-900">
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-8">
+        <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white">
               <Zap className="h-5 w-5" />
             </div>
             <div>
-              <div className="text-xl font-bold tracking-tight text-slate-950">Agentify</div>
-              <div className="text-xs font-medium text-slate-500">Nhân viên AI cho social commerce Việt Nam</div>
+              <div className="text-xl font-bold">Agentify</div>
+              <div className="text-sm text-slate-600">Demo MVP: Zalo OA + KiotViet</div>
             </div>
           </div>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 md:flex">
-            <a href="#van-de" className="hover:text-teal-700">Vấn đề</a>
-            <a href="#giai-phap" className="hover:text-teal-700">Giải pháp</a>
-            <a href="#tich-hop" className="hover:text-teal-700">Tích hợp</a>
-            <a href="#thi-truong" className="hover:text-teal-700">Thị trường đầu tiên</a>
-          </nav>
-          <button
-            onClick={openShopChat}
-            className="hidden rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm hover:border-teal-300 hover:text-teal-700 sm:inline-flex"
-          >
-            Liên hệ với shop
-          </button>
+        </header>
+
+        <section className="grid gap-4 md:grid-cols-2">
           <button
             onClick={onEnterDemo}
-            className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+            className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm hover:border-teal-300 hover:shadow"
           >
-            Bắt đầu ngay
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">Bước 1 / 2</p>
+            <h1 className="mt-2 text-2xl font-bold">Kết nối Zalo OA</h1>
+            <p className="mt-2 text-sm text-slate-600">Kéo luồng hội thoại vào demo agent. Sau khi bấm, app sẽ chuyển sang bước 2.</p>
+            <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-teal-700">
+              Bắt đầu kết nối
+              <ChevronRight className="h-4 w-4" />
+            </span>
           </button>
-        </div>
-      </header>
 
-      <main>
-        <section className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,rgba(13,148,136,0.16),transparent_34%),linear-gradient(120deg,rgba(13,148,136,0.08),transparent_44%,rgba(251,113,133,0.08))]" />
-          <div className="relative mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.02fr_0.98fr] lg:py-20">
-            <div className="flex flex-col justify-center">
-              <div className="mb-5 inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-white px-3 py-1.5 text-sm font-medium text-teal-700 shadow-sm">
-                <CheckCircle2 className="h-4 w-4" />
-                Kết nối Zalo, KiotViet và quy trình bán hàng trong vài phút.
-              </div>
-              <h1 className="max-w-4xl text-5xl font-bold leading-[1.02] tracking-tight text-slate-950 lg:text-6xl">
-                Giữ nguyên hệ thống hiện tại. Thêm một nhân viên AI để tự hoàn thành công việc.
-              </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-650">
-                Agentify giúp doanh nghiệp bán hàng và dịch vụ tại Việt Nam tự động xử lý hội thoại, tư vấn sản phẩm, đặt lịch, tạo đơn và follow-up trên Zalo, Facebook cùng các nền tảng sẵn có như KiotViet, Sapo, Pancake.
-              </p>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <button
-                  onClick={onEnterDemo}
-                  className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 hover:bg-teal-700"
-                >
-                  Bắt đầu ngay
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={openShopChat}
-                  className="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
-                >
-                  Liên hệ với shop
-                  <MessageSquare className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={() => onNotify('Đã ghi nhận nhu cầu trao đổi pilot')}
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm hover:border-teal-300 hover:text-teal-700"
-                >
-                  Trao đổi pilot
-                  <ArrowUpRight className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="mt-8 grid max-w-2xl grid-cols-3 gap-3">
-                <LandingMiniStat value="300-500" label="tin nhắn mỗi ngày" />
-                <LandingMiniStat value="24/7" label="phản hồi và theo dõi" />
-                <LandingMiniStat value="100%" label="tự động cho workflow đủ điều kiện" />
-              </div>
-            </div>
-
-            <HeroProductMockup onEnterDemo={onEnterDemo} />
+          <div
+            className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm hover:border-teal-300 hover:shadow"
+          >
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">Bước 2 / 2</p>
+            <h1 className="mt-2 text-2xl font-bold">Kết nối KiotViet</h1>
+            <p className="mt-2 text-sm text-slate-600">Khi đã vào bước này, demo sẽ mở chat để gửi tin nhắn Zalo và tự tạo hóa đơn.</p>
+            <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-500">
+              Vào trực tiếp chat demo
+              <MessageSquare className="h-4 w-4" />
+            </span>
           </div>
         </section>
 
-        <section id="van-de" className="mx-auto max-w-7xl px-6 py-16">
-          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr]">
-            <div>
-              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-coral-600">Vấn đề</p>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-950">SME đã có phần mềm, nhưng vận hành vẫn phụ thuộc vào con người.</h2>
-              <p className="mt-4 leading-7 text-slate-600">
-                Pancake gom hội thoại, KiotViet và Sapo lưu dữ liệu, lịch quản lý booking. Nhưng nhân viên vẫn phải đọc chat, quyết định bước tiếp theo, check dữ liệu, nhắc khách và theo dõi lại từng lead.
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <ProblemCard value="300-500" label="tin nhắn/ngày" desc="Dễ quá tải ở giờ cao điểm và sau giờ làm." />
-              <ProblemCard value="30-50%" label="khách bị bỏ sót" desc="Lead nóng trôi mất vì phản hồi chậm." />
-              <ProblemCard value="8-18M" label="VND/tháng" desc="Chi phí cho một nhân sự chăm sóc khách hàng." />
-            </div>
-          </div>
+        <section className="rounded-2xl border border-slate-200 bg-white p-6">
+          <h2 className="text-lg font-semibold">Kịch bản demo</h2>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-700">
+            <li>Bấm bước 1 để kết nối Zalo OA.</li>
+            <li>Nhập thông tin KiotViet (mã đại lý giả lập mặc định) ở bước 2.</li>
+            <li>Sau đó vào Zalo chat để gửi mẫu: <span className="font-semibold">"Đặt cho chị ..."</span>.</li>
+            <li>Xem ngay phản hồi AI + thẻ hóa đơn + thông điệp "đã gửi hóa đơn".</li>
+          </ol>
+          <button
+            onClick={() => onNotify('Đã chọn chế độ demo nhanh 2 bước')}
+            className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          >
+            Nhắc lại flow này
+          </button>
         </section>
-
-        <section id="giai-phap" className="border-y border-slate-200 bg-white">
-          <div className="mx-auto max-w-7xl px-6 py-16">
-            <div className="mb-10 max-w-3xl">
-              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-teal-700">Giải pháp</p>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-950">Không chỉ trả lời. Agentify hiểu, gọi công cụ và hoàn thành workflow.</h2>
-            </div>
-            <div className="grid gap-5 lg:grid-cols-3">
-              <SolutionStep number="01" title="Hiểu hội thoại tiếng Việt" desc="Nhận diện intent, trạng thái khách hàng và mức độ rủi ro trong từng cuộc trò chuyện." />
-              <SolutionStep number="02" title="Làm việc trên stack hiện có" desc="Gọi dữ liệu từ Zalo OA, Facebook, KiotViet, Sapo, Pancake hoặc lịch hẹn." />
-              <SolutionStep number="03" title="Chốt kết quả và báo lại" desc="Đặt lịch, tạo đơn, gửi xác nhận, nhắc lịch, follow-up hoặc chuyển cho nhân viên duyệt." />
-            </div>
-            <div className="mt-8 rounded-2xl border border-teal-100 bg-teal-50/60 p-5">
-              <div className="grid items-center gap-3 text-sm font-semibold text-slate-700 md:grid-cols-7">
-                {['Khách hỏi dịch vụ', 'AI tư vấn', 'Kiểm tra lịch', 'Đặt lịch', 'Gửi xác nhận', 'Nhắc lịch', 'Chuyển ca rủi ro'].map((item, index) => (
-                  <div key={item} className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs text-teal-700">{index + 1}</span>
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="tich-hop" className="mx-auto max-w-7xl px-6 py-16">
-          <div className="grid gap-10 lg:grid-cols-[1fr_1.1fr]">
-            <div>
-              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-teal-700">Tích hợp</p>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-950">Một lớp AI trung lập, chạy bên trên công cụ doanh nghiệp đang dùng.</h2>
-              <p className="mt-4 leading-7 text-slate-600">
-                Agentify không yêu cầu khách hàng bỏ hệ thống cũ. Sản phẩm được thiết kế để kết nối vào các kênh và phần mềm nội địa, rồi tự thực hiện các tác vụ có ranh giới rõ ràng.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              {['Zalo OA', 'Facebook', 'KiotViet', 'Sapo', 'Pancake', 'Lịch Google'].map((tool) => (
-                <div key={tool} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-teal-700">
-                    <Link2 className="h-5 w-5" />
-                  </div>
-                  <div className="font-semibold text-slate-950">{tool}</div>
-                  <div className="mt-1 text-sm text-teal-700">Sẵn sàng kết nối</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="thi-truong" className="bg-slate-950 text-white">
-          <div className="mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[0.9fr_1.1fr]">
-            <div>
-              <p className="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-teal-300">Thị trường đầu tiên</p>
-              <h2 className="text-3xl font-bold tracking-tight">Beauty, spa, clinic là wedge phù hợp để chứng minh ROI.</h2>
-              <p className="mt-4 leading-7 text-slate-300">
-                Ngành này có inbound lead lớn, workflow đặt lịch rõ, giá trị mỗi booking cao và missed follow-up gây mất doanh thu trực tiếp.
-              </p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <MetricPill label="Booking rate" value="Tăng tỷ lệ đặt lịch" />
-              <MetricPill label="Show-up rate" value="Giảm no-show" />
-              <MetricPill label="Response time" value="Phản hồi trong vài giây" />
-              <MetricPill label="Lead recovery" value="Theo dõi lại khách chưa chốt" />
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-7xl px-6 py-16">
-          <div className="rounded-3xl border border-teal-200 bg-white p-8 shadow-xl shadow-teal-900/5 md:p-10">
-            <div className="grid items-center gap-8 lg:grid-cols-[1fr_auto]">
-              <div>
-                <h2 className="text-3xl font-bold tracking-tight text-slate-950">Bắt đầu bằng một workflow hẹp. Tự động hóa trọn vẹn. Mở rộng dần tới vận hành tự động.</h2>
-                <p className="mt-3 text-slate-600">Kết nối kênh chat, đồng bộ KiotViet và để Agentify xử lý các hội thoại đủ điều kiện ngay trong bảng điều khiển.</p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button onClick={onEnterDemo} className="rounded-lg bg-teal-600 px-5 py-3 text-sm font-semibold text-white hover:bg-teal-700">
-                  Bắt đầu ngay
-                </button>
-                <button onClick={openShopChat} className="rounded-lg bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-                  Liên hệ với shop
-                </button>
-                <button onClick={() => onNotify('Đã ghi nhận nhu cầu trao đổi pilot')} className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-800 hover:border-teal-300 hover:text-teal-700">
-                  Trao đổi pilot
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
+      </div>
     </div>
   );
 }

@@ -10,12 +10,18 @@ router = APIRouter(prefix="/api", tags=["chat"])
 
 @router.post("/channels/demo/messages", response_model=DemoMessageResponse)
 async def demo_message(payload: DemoMessageRequest, db: Session = Depends(get_db)) -> DemoMessageResponse:
-    conversation, reply, actions, order = await receive_demo_message(db, payload)
+    conversation, reply, actions, order, invoice, ui_events = await receive_demo_message(db, payload)
+    ui_event_payload = [
+        {"type": item.type, "status": item.status, "title": item.title, "detail": item.detail}
+        for item in ui_events
+    ]
     return DemoMessageResponse(
         conversation_id=conversation.id,
         reply=reply,
         actions=[ActionResponse(type=action.type, status=action.status, summary=action.summary) for action in actions],
         order=OrderSummary.model_validate(order, from_attributes=True) if order else None,
+        invoice=invoice,
+        ui_events=ui_event_payload,
     )
 
 
@@ -43,4 +49,3 @@ def messages(conversation_id: int, db: Session = Depends(get_db)) -> list[Messag
 @router.get("/conversations/{conversation_id}/actions", response_model=list[ActionResponse])
 def actions(conversation_id: int, db: Session = Depends(get_db)) -> list[ActionResponse]:
     return [ActionResponse(type=action.action_type, status=action.status, summary=action.summary) for action in list_actions(db, conversation_id)]
-

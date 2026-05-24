@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from pydantic import BaseModel, Field
+from app.agent.schemas import InvoicePayload
 
 
 class DemoMessageRequest(BaseModel):
@@ -35,6 +36,8 @@ class DemoMessageResponse(BaseModel):
     reply: str
     actions: list[ActionResponse]
     order: OrderSummary | None = None
+    invoice: InvoicePayload | None = None
+    ui_events: list[dict[str, str]] = Field(default_factory=list)
 
 
 class ConversationResponse(BaseModel):

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from app.agent.service import handle_customer_message
+from app.agent.service import process_customer_message
 from app.chat.schemas import DemoMessageRequest
 from app.models import AgentAction, Conversation, Customer, Message
 from app.shared.workspace import DEFAULT_WORKSPACE_ID, ensure_default_workspace
@@ -14,8 +14,9 @@ async def receive_demo_message(db: Session, payload: DemoMessageRequest):
     customer = _find_or_create_customer(db, payload)
     conversation = _find_or_create_conversation(db, payload.conversation_id, customer.id, channel="user_chat")
     db.add(Message(conversation_id=conversation.id, sender="customer", content=payload.message))
+    db.flush()
 
-    reply, actions, order = await handle_customer_message(
+    _, reply, actions, order, invoice_payload, ui_events = await process_customer_message(
         db,
         conversation=conversation,
         customer_id=customer.id,
@@ -27,7 +28,7 @@ async def receive_demo_message(db: Session, payload: DemoMessageRequest):
     db.refresh(conversation)
     if order:
         db.refresh(order)
-    return conversation, reply, actions, order
+    return conversation, reply, actions, order, invoice_payload, ui_events
 
 
 def _find_or_create_conversation(db: Session, conversation_id: int | None, customer_id: int, *, channel: str) -> Conversation:

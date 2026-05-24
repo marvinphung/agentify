@@ -6,6 +6,14 @@ Khách nhắn tin -> Agentify nhận diện nhu cầu -> tìm sản phẩm -> ch
 
 ## Chạy local
 
+Backend local mặc định kết nối PostgreSQL trên VPS:
+
+```env
+DATABASE_URL=postgresql+psycopg://agentify:agentify@131.153.239.187:5441/agentify
+```
+
+Vì vậy không cần chạy Postgres local nếu VPS DB đang mở port `5441`.
+
 ```bash
 cd backend
 uv sync --extra dev
@@ -27,18 +35,7 @@ API chạy ở:
 http://localhost:8763
 ```
 
-PostgreSQL expose ra host ở port `5441` để tránh đụng Postgres local port `5432`.
-
-PostgreSQL local:
-
-```bash
-docker run --name agentify-postgres \
-  -e POSTGRES_USER=agentify \
-  -e POSTGRES_PASSWORD=agentify \
-  -e POSTGRES_DB=agentify \
-  -p 5432:5432 \
-  -d postgres:16-alpine
-```
+Docker Compose cũng dùng PostgreSQL trên VPS, không tự khởi động Postgres local.
 
 ## KiotViet
 

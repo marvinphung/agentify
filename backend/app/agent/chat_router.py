@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.agent.service import process_customer_message
 from app.agent.chat_schemas import AgentChatRequest, AgentChatResponse, AgentRecommendedProduct
 from app.config import get_settings
 from app.database import get_db
@@ -51,34 +52,32 @@ async def agent_chat(payload: AgentChatRequest, db: Session = Depends(get_db)) -
     db.add(Message(conversation_id=conversation.id, sender="customer", content=payload.message))
     db.flush()
 
-    products = _load_products(db)
-    order_history = _load_order_history(db, payload.customer_phone)
-    conversation_history = _load_conversation_history(db, conversation.id)
-    active_product_focus = _resolve_active_product_focus(payload.message, conversation_history)
-    llm_response = await _call_llm(payload, products, order_history, conversation_history, active_product_focus)
-    if llm_response is None:
-        llm_response = _fallback_response(payload.message, payload.customer_name, payload.customer_phone, order_history)
-    if _is_order_support_message(payload.message) and order_history:
-        llm_response = _order_history_response(payload.customer_name, order_history)
-
-    intent = llm_response.get("intent") or "general"
-    reply = llm_response.get("reply") or "Dạ em đã nhận tin nhắn của chị. Chị cho em thêm thông tin để em hỗ trợ chính xác hơn nhé."
-    actions = llm_response.get("actions") or ["LLM đã phân loại tin nhắn và tạo phản hồi"]
-    db.add(Message(conversation_id=conversation.id, sender="ai", content=reply))
-    for action in actions:
-        db.add(AgentAction(conversation_id=conversation.id, action_type="llm_chat", status="success", summary=action, raw_json={"intent": intent}))
-    conversation.status = _status_from_intent(intent)
+    plan, reply, actions, order, invoice_payload, ui_events = await process_customer_message(
+        db,
+        conversation=conversation,
+        customer_id=customer.id,
+        customer_name=customer.name,
+        customer_phone=customer.phone,
+        message=payload.message,
+    )
     db.commit()
     db.refresh(conversation)
+    if order:
+        db.refresh(order)
 
-    recommended = [] if intent in {"order_status", "appointment_booking"} else _recommend_products(products, llm_response.get("product_keywords") or [], payload.message, active_product_focus)
+    ui_payload = [
+        {"type": item.type, "status": item.status, "title": item.title, "detail": item.detail}
+        for item in ui_events
+    ]
     return AgentChatResponse(
         conversation_id=conversation.id,
-        intent=intent,
+        intent=plan.intent,
         reply=reply,
-        recommended_products=recommended,
-        quick_replies=llm_response.get("quick_replies") or [],
-        actions=actions,
+        invoice=invoice_payload.model_dump() if invoice_payload else None,
+        recommended_products=[],
+        quick_replies=[],
+        actions=[action.summary for action in actions],
+        ui_events=ui_payload,
     )
 
 

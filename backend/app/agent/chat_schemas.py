@@ -20,6 +20,8 @@ class AgentChatResponse(BaseModel):
     conversation_id: int | None = None
     intent: str
     reply: str
+    invoice: dict | None = None
     recommended_products: list[AgentRecommendedProduct] = Field(default_factory=list)
     quick_replies: list[str] = Field(default_factory=list)
     actions: list[str] = Field(default_factory=list)
+    ui_events: list[dict[str, str]] = Field(default_factory=list)

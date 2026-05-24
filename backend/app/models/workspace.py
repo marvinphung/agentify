@@ -15,4 +15,4 @@ class Workspace(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     integrations = relationship("KiotVietIntegration", back_populates="workspace")
-
+    zalo_integrations = relationship("ZaloIntegration", back_populates="workspace")
