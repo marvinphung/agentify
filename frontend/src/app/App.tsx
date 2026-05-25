@@ -162,6 +162,11 @@ export default function App() {
     setToast(message);
   };
 
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, '', path);
+    setPathname(path);
+  };
+
   const selectChannel = (channel: string) => {
     setChannelFilter(channel);
     notify(`Đang lọc dữ liệu theo kênh: ${channel}`);
@@ -244,6 +249,7 @@ export default function App() {
       <div className="size-full bg-[#f7faf8] text-slate-950 overflow-auto">
         <LandingPage
           onEnterDemo={startDemo}
+          onEnterChat={() => navigateTo('/user_chat')}
         />
         {toast && <Toast message={toast} />}
       </div>
@@ -929,18 +935,23 @@ function KiotVietConnectScreen({
   );
 }
 
-function LandingPage({ onEnterDemo }: { onEnterDemo: () => void }) {
+function LandingPage({ onEnterDemo, onEnterChat }: { onEnterDemo: () => void, onEnterChat: () => void }) {
   return (
     <div className="min-h-screen bg-[#eef6f3] text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 px-6 py-8">
-        <header className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-600 text-white">
-              <Zap className="h-5 w-5" />
+      <div className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center gap-6 px-6 py-8">
+        <header className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-teal-600 text-white">
+                <Zap className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-2xl font-bold">Agentify</div>
+                <div className="text-sm text-slate-600">Chọn vai trò để bắt đầu demo</div>
+              </div>
             </div>
-            <div>
-              <div className="text-xl font-bold">Agentify</div>
-              <div className="text-sm text-slate-600">Demo MVP: Zalo OA + KiotViet</div>
+            <div className="rounded-full bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700">
+              Zalo OA + KiotViet
             </div>
           </div>
         </header>
@@ -948,28 +959,39 @@ function LandingPage({ onEnterDemo }: { onEnterDemo: () => void }) {
         <section className="grid gap-4 md:grid-cols-2">
           <button
             onClick={onEnterDemo}
-            className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm hover:border-teal-300 hover:shadow"
+            className="group rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">Bước 1 / 2</p>
-            <h1 className="mt-2 text-2xl font-bold">Kết nối Zalo OA</h1>
-            <p className="mt-2 text-sm text-slate-600">Kéo luồng hội thoại vào demo agent. Sau khi bấm, app sẽ chuyển sang bước 2.</p>
-            <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-teal-700">
-              Bắt đầu kết nối
-              <ChevronRight className="h-4 w-4" />
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-950 text-white">
+              <LayoutDashboard className="h-6 w-6" />
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">Chủ shop</p>
+            <h1 className="mt-2 text-2xl font-bold">Giao diện shop</h1>
+            <p className="mt-3 min-h-[48px] text-sm leading-6 text-slate-600">
+              Vào luồng authorize Agentify với Zalo, tiếp theo là KiotViet, rồi mở trang quản lý vận hành của shop.
+            </p>
+            <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-teal-700">
+              Mở flow kết nối
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
             </span>
           </button>
 
-          <div
-            className="rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-sm hover:border-teal-300 hover:shadow"
+          <button
+            onClick={onEnterChat}
+            className="group rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
           >
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">Bước 2 / 2</p>
-            <h1 className="mt-2 text-2xl font-bold">Kết nối KiotViet</h1>
-            <p className="mt-2 text-sm text-slate-600">Sau khi Zalo được cho phép, Agentify sẽ dùng cấu hình backend để kết nối shop KiotViet.</p>
-            <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-500">
-              Tự động mở sau bước Zalo
-              <ChevronRight className="h-4 w-4" />
+            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-white">
+              <MessageSquare className="h-6 w-6" />
+            </div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Khách hàng</p>
+            <h1 className="mt-2 text-2xl font-bold">Giao diện chat</h1>
+            <p className="mt-3 min-h-[48px] text-sm leading-6 text-slate-600">
+              Mở màn chat Zalo mobile, giả lập khách nhắn cho shop để tư vấn, đặt hàng, hoàn tiền hoặc xử lý khiếu nại.
+            </p>
+            <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
+              Chat với shop
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
             </span>
-          </div>
+          </button>
         </section>
       </div>
     </div>
