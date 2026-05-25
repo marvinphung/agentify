@@ -3,7 +3,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.integrations.kiotviet.service import COSMETIC_DEMO_PRODUCTS, seed_cosmetic_products
+from app.integrations.kiotviet.service import COSMETIC_DEMO_PRODUCTS, ensure_cosmetic_demo_products, seed_cosmetic_products
 from app.models import AgentAction, Conversation, Customer, Message, Order, ProductCache
 from app.shared.workspace import DEFAULT_WORKSPACE_ID, ensure_default_workspace
 
@@ -17,6 +17,8 @@ def seed_demo_data(db: Session) -> None:
     ensure_default_workspace(db)
     if _product_count(db) == 0:
         seed_cosmetic_products(db)
+    else:
+        ensure_cosmetic_demo_products(db)
     customer = _ensure_demo_customer(db)
     conversation = _ensure_demo_conversation(db, customer.id)
     _ensure_demo_order(db, customer.id, conversation.id)

@@ -10,6 +10,95 @@ from app.shared.text import normalize_text
 from app.shared.workspace import DEFAULT_WORKSPACE_ID
 
 
+AGENT_TOOL_CATALOG = [
+    {
+        "name": "list_products",
+        "purpose": "Lấy danh sách hàng hóa đang có trong KiotViet/cache để tư vấn hoặc so sánh.",
+        "inputs": ["query optional", "limit optional"],
+        "returns": "products: id, name, price, stock, metadata",
+    },
+    {
+        "name": "search_products",
+        "purpose": "Tìm sản phẩm gần nhất theo tên/nhu cầu khách.",
+        "inputs": ["product_query"],
+        "returns": "product_id, kiotviet_product_id, name, base_price, stock",
+    },
+    {
+        "name": "recommend_products",
+        "purpose": "Gợi ý nhiều sản phẩm phù hợp theo nhu cầu/loại da/ngân sách.",
+        "inputs": ["query", "skin_type optional", "budget optional"],
+        "returns": "recommended products with reason",
+    },
+    {
+        "name": "check_stock",
+        "purpose": "Kiểm tra tồn kho trước khi hỏi chốt đơn hoặc tạo đơn.",
+        "inputs": ["product_id or product_result", "quantity"],
+        "returns": "stock status",
+    },
+    {
+        "name": "lookup_order",
+        "purpose": "Tra cứu đơn hàng theo SĐT/mã đơn để xử lý hoàn tiền, thiếu hàng, kích ứng, trạng thái giao.",
+        "inputs": ["customer_phone optional", "order_code optional"],
+        "returns": "latest matching order and items",
+    },
+    {
+        "name": "create_draft_order",
+        "purpose": "Tạo đơn nháp sau khi đã có sản phẩm, số lượng, tên khách, SĐT, địa chỉ và khách xác nhận.",
+        "inputs": ["confirmed order slots"],
+        "returns": "order_id, total",
+    },
+    {
+        "name": "create_invoice",
+        "purpose": "Xuất hóa đơn điện tử từ đơn đã tạo.",
+        "inputs": ["order_id"],
+        "returns": "invoice payload with line items and payment QR data",
+    },
+    {
+        "name": "book_appointment",
+        "purpose": "Đặt lịch soi da/chăm sóc da/kích ứng sau khi khách xác nhận thông tin.",
+        "inputs": ["customer_name", "phone", "slot", "clinic", "reason"],
+        "returns": "appointment confirmation",
+    },
+    {
+        "name": "create_support_ticket",
+        "purpose": "Tạo ticket khiếu nại thiếu hàng/sai hàng/kích ứng sau khi đủ thông tin xử lý.",
+        "inputs": ["order_id", "issue", "resolution"],
+        "returns": "ticket status",
+    },
+    {
+        "name": "ask_clarification",
+        "purpose": "Hỏi thêm khi thiếu dữ liệu hoặc rủi ro tạo hành động sai.",
+        "inputs": ["missing fields"],
+        "returns": "next question",
+    },
+]
+
+
+def list_agent_tools() -> list[dict]:
+    return AGENT_TOOL_CATALOG
+
+
+def list_products(db: Session, query: str | None = None, *, limit: int = 20) -> ToolResult:
+    products_query = select(ProductCache).where(ProductCache.workspace_id == DEFAULT_WORKSPACE_ID).limit(300)
+    products = list(db.scalars(products_query))
+    query_norm = normalize_text(query or "")
+    if query_norm:
+        products = [product for product in products if _product_score(product, query_norm) > 0]
+    products.sort(key=lambda product: normalize_text(product.name))
+    rows = [
+        {
+            "id": product.id,
+            "kiotviet_product_id": product.kiotviet_product_id,
+            "name": product.name,
+            "price": float(product.base_price),
+            "stock": product.stock,
+            "metadata": product.raw_json or {},
+        }
+        for product in products[:limit]
+    ]
+    return ToolResult(type="product_list", status="success", summary=f"Lấy {len(rows)} sản phẩm từ KiotViet/cache.", data={"products": rows})
+
+
 def search_products(db: Session, query: str | None) -> ToolResult:
     if not query:
         return ToolResult(type="product_search", status="failed", summary="Chưa có tên sản phẩm.")
@@ -17,11 +106,7 @@ def search_products(db: Session, query: str | None) -> ToolResult:
     query_norm = normalize_text(query)
     scored: list[tuple[int, ProductCache]] = []
     for product in products:
-        name_norm = normalize_text(product.name)
-        score = 0
-        if query_norm in name_norm:
-            score += 100
-        score += sum(10 for token in query_norm.split() if token in name_norm)
+        score = _product_score(product, query_norm)
         if score:
             scored.append((score, product))
     if not scored:
@@ -43,17 +128,11 @@ def search_product_recommendations(db: Session, query: str | None, *, limit: int
     query_norm = normalize_text(query)
     scored: list[tuple[int, ProductCache]] = []
     for product in products:
-        name_norm = normalize_text(product.name)
-        score = 0
-        if query_norm in name_norm:
-            score += 100
+        score = _product_score(product, query_norm)
+        metadata_norm = normalize_text(" ".join(str(value) for value in (product.raw_json or {}).values()))
         for token in query_norm.split():
-            if len(token) > 2 and token in name_norm:
-                score += 10
-        if "kem chong nang" in query_norm and "kem chong nang" in name_norm:
-            score += 40
-        if "spf" in query_norm and "spf" in name_norm:
-            score += 20
+            if len(token) > 2 and token in metadata_norm:
+                score += 8
         if score:
             scored.append((score, product))
     scored.sort(key=lambda item: item[0], reverse=True)
@@ -63,7 +142,7 @@ def search_product_recommendations(db: Session, query: str | None, *, limit: int
             "name": product.name,
             "price": float(product.base_price),
             "stock": product.stock,
-            "reason": "Phù hợp với nhu cầu tư vấn và đang có dữ liệu tồn kho từ KiotViet.",
+            "reason": _recommendation_reason(product),
         }
         for _, product in scored[:limit]
     ]
@@ -74,6 +153,33 @@ def search_product_recommendations(db: Session, query: str | None, *, limit: int
         status="success",
         summary=f"Tìm thấy {len(recommendations)} sản phẩm phù hợp với '{query}'.",
         data={"products": recommendations},
+    )
+
+
+def lookup_order(db: Session, *, customer_phone: str | None = None, order_code: str | None = None) -> ToolResult:
+    query = select(Order).where(Order.workspace_id == DEFAULT_WORKSPACE_ID)
+    if order_code:
+        order = db.scalar(query.where(Order.kiotviet_order_code == order_code))
+    elif customer_phone:
+        order = db.scalar(query.where(Order.customer_phone == customer_phone).order_by(Order.created_at.desc(), Order.id.desc()))
+    else:
+        order = None
+    if not order:
+        return ToolResult(type="order_lookup", status="failed", summary="Không tìm thấy đơn hàng theo thông tin khách cung cấp.")
+    return ToolResult(
+        type="order_lookup",
+        status="success",
+        summary=f"Tìm thấy đơn {order.kiotviet_order_code or f'#{order.id}'}.",
+        data={
+            "order_id": order.id,
+            "order_code": order.kiotviet_order_code,
+            "status": order.status,
+            "total": float(order.total),
+            "customer_name": order.customer_name,
+            "customer_phone": order.customer_phone,
+            "shipping_address": order.shipping_address,
+            "items": order.items,
+        },
     )
 
 
@@ -121,3 +227,56 @@ def create_draft_order(db: Session, *, conversation_id: int, customer_id: int, p
     db.add(order)
     db.flush()
     return ToolResult(type="order_create", status="success", summary=f"Đã tạo đơn nháp #{order.id} tổng {int(total):,}đ.", data={"order_id": order.id, "total": float(total)}), order
+
+
+def create_support_ticket(db: Session, *, conversation_id: int, issue: str, resolution: str, order_id: int | None = None) -> ToolResult:
+    return ToolResult(
+        type="support_ticket_create",
+        status="success",
+        summary="Đã tạo ticket hỗ trợ để nhân viên theo dõi.",
+        data={"conversation_id": conversation_id, "order_id": order_id, "issue": issue, "resolution": resolution},
+    )
+
+
+def book_appointment(*, customer_name: str, customer_phone: str, slot: str, clinic: str, reason: str) -> ToolResult:
+    return ToolResult(
+        type="appointment_book",
+        status="success",
+        summary=f"Đã đặt lịch {slot} tại {clinic} cho {customer_name}.",
+        data={"customer_name": customer_name, "customer_phone": customer_phone, "slot": slot, "clinic": clinic, "reason": reason},
+    )
+
+
+def _product_score(product: ProductCache, query_norm: str) -> int:
+    if not query_norm:
+        return 1
+    name_norm = normalize_text(product.name)
+    code_norm = normalize_text(product.code or "")
+    metadata_norm = normalize_text(" ".join(str(value) for value in (product.raw_json or {}).values()))
+    haystack = f"{name_norm} {code_norm} {metadata_norm}"
+    score = 0
+    if query_norm in haystack:
+        score += 100
+    for token in query_norm.split():
+        if len(token) > 2 and token in haystack:
+            score += 10
+    if "kem chong nang" in query_norm and ("spf" in haystack or "uv" in haystack):
+        score += 40
+    if "ceramide" in query_norm and "ceramide" in haystack:
+        score += 50
+    return score
+
+
+def _recommendation_reason(product: ProductCache) -> str:
+    raw = product.raw_json or {}
+    reasons: list[str] = []
+    skin_types = raw.get("skin_types")
+    if isinstance(skin_types, list) and skin_types:
+        reasons.append("phù hợp " + ", ".join(str(item) for item in skin_types))
+    if raw.get("texture"):
+        reasons.append(str(raw["texture"]))
+    if raw.get("notes"):
+        reasons.append(str(raw["notes"]))
+    if reasons:
+        return "; ".join(reasons) + "."
+    return "Phù hợp với nhu cầu tư vấn và đang có dữ liệu tồn kho từ KiotViet."

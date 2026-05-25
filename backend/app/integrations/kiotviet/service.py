@@ -41,6 +41,14 @@ COSMETIC_DEMO_PRODUCTS = [
     {"id": 900026, "code": "MP026", "name": "Tẩy da chết enzyme dịu nhẹ 80g", "basePrice": 255000, "stock": 12},
     {"id": 900027, "code": "MP027", "name": "Kem chống nắng dạng sữa Aqua Light SPF50 40ml", "basePrice": 260000, "stock": 22},
     {"id": 900028, "code": "MP028", "name": "Kem chống nắng vật lý Mineral Calm SPF50 50ml", "basePrice": 390000, "stock": 10},
+    {"id": 910001, "code": "SUNCARE-AQUA", "name": "SunCare Aqua SPF50+", "basePrice": 320000, "stock": 20, "skin_types": ["da dầu", "da hỗn hợp"], "texture": "gel mỏng nhẹ"},
+    {"id": 910002, "code": "DERMA-SHIELD-SENSITIVE", "name": "Derma Shield Sensitive SPF50", "basePrice": 390000, "stock": 12, "skin_types": ["da nhạy cảm", "da treatment"], "notes": "không cồn, không hương liệu"},
+    {"id": 910003, "code": "MOIST-UV-CREAM", "name": "Moist UV Cream SPF50+", "basePrice": 350000, "stock": 10, "skin_types": ["da khô"], "notes": "có dưỡng ẩm"},
+    {"id": 910004, "code": "RETINOL-03", "name": "Retinol Night Repair 0.3%", "basePrice": 420000, "stock": 9, "notes": "retinol chăm sóc ban đêm"},
+    {"id": 910005, "code": "GENTLE-FOAM", "name": "Sữa rửa mặt Gentle Foam", "basePrice": 180000, "stock": 18, "notes": "sữa rửa mặt dịu nhẹ"},
+    {"id": 910006, "code": "CLEAN-GENTLE", "name": "Cleanser Gentle Foam", "basePrice": 190000, "stock": 15, "notes": "sữa rửa mặt dịu nhẹ"},
+    {"id": 910007, "code": "NIA-10", "name": "Serum Niacinamide 10%", "basePrice": 260000, "stock": 21, "skin_types": ["da dầu"], "notes": "hỗ trợ ổn định dầu"},
+    {"id": 910008, "code": "CERAMIDE-CREAM", "name": "Kem dưỡng Ceramide Cream", "basePrice": 280000, "stock": 16, "notes": "phục hồi hàng rào bảo vệ da"},
 ]
 
 KIOTVIET_DEMO_CATEGORY_NAME = "Mỹ phẩm demo Agentify"
@@ -155,6 +163,25 @@ def seed_cosmetic_products(db: Session) -> int:
         _upsert_product(db, DEFAULT_WORKSPACE_ID, product)
     db.commit()
     return len(COSMETIC_DEMO_PRODUCTS)
+
+
+def ensure_cosmetic_demo_products(db: Session) -> int:
+    ensure_default_workspace(db)
+    count = 0
+    existing_codes = set(
+        db.scalars(
+            select(ProductCache.code).where(
+                ProductCache.workspace_id == DEFAULT_WORKSPACE_ID,
+                ProductCache.code.is_not(None),
+            )
+        )
+    )
+    for product in COSMETIC_DEMO_PRODUCTS:
+        if product["code"] not in existing_codes:
+            _upsert_product(db, DEFAULT_WORKSPACE_ID, product)
+            count += 1
+    db.commit()
+    return count
 
 
 async def create_cosmetic_products_in_kiotviet(db: Session) -> tuple[int, int, int]:

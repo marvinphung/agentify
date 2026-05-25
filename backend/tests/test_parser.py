@@ -45,3 +45,10 @@ def test_parse_order_keeps_profile_phone_and_strips_delivery_time():
     assert plan.slots.customer_name == "Vũ vv vd"
     assert plan.slots.customer_phone == "0000009999"
     assert plan.slots.shipping_address == "19 Lê Thanh Nghị"
+
+
+def test_freeship_is_not_order_intent():
+    plan = parse_message("Shop có voucher hay freeship không?")
+
+    assert plan.intent == "unknown"
+    assert "create_draft_order" not in plan.tool_plan

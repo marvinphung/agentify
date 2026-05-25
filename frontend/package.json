@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite",
+    "dev": "CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=200 vite",
     "dev:poll": "CHOKIDAR_USEPOLLING=true CHOKIDAR_INTERVAL=200 vite"
   },
   "dependencies": {

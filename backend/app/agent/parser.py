@@ -6,6 +6,8 @@ STOCK_WORDS = ("còn", "con", "tồn", "ton", "giá", "gia")
 CONSULT_WORDS = ("tư vấn", "tu van", "gợi ý", "goi y", "recommend", "nên dùng", "nen dung", "phù hợp", "phu hop")
 STOPWORDS = {
     "anh",
+    "tôi",
+    "toi",
     "chị",
     "chi",
     "em",
@@ -13,6 +15,10 @@ STOPWORDS = {
     "minh",
     "muốn",
     "muon",
+    "được",
+    "duoc",
+    "về",
+    "ve",
     "mua",
     "lấy",
     "lay",
@@ -61,11 +67,11 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
     raw = message.strip()
     lower = raw.lower()
     intent = "unknown"
-    if any(word in lower for word in CONSULT_WORDS) and not any(word in lower for word in BUY_WORDS):
+    if _contains_any(lower, CONSULT_WORDS) and not _contains_any(lower, BUY_WORDS):
         intent = "product_consultation"
-    elif any(word in lower for word in BUY_WORDS):
+    elif _contains_any(lower, BUY_WORDS):
         intent = "buy_product"
-    elif any(word in lower for word in STOCK_WORDS):
+    elif _contains_any(lower, STOCK_WORDS):
         intent = "ask_stock"
 
     quantity = 1
@@ -98,6 +104,17 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
         tool_plan=tool_plan,
         source="rule",
     )
+
+
+def _contains_any(text: str, words: tuple[str, ...]) -> bool:
+    for word in words:
+        if " " in word:
+            if word in text:
+                return True
+            continue
+        if re.search(rf"(?<![a-zA-ZÀ-ỹ0-9]){re.escape(word)}(?![a-zA-ZÀ-ỹ0-9])", text, flags=re.IGNORECASE):
+            return True
+    return False
 
 
 def extract_address(message: str) -> str | None:

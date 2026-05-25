@@ -648,10 +648,7 @@ function UserChatScreen() {
   const [customerName] = useState('Khách Zalo');
   const [customerPhone] = useState('');
   const [channelUserId, setChannelUserId] = useState(() => window.localStorage.getItem('agentify_user_chat_channel_user_id') || '');
-  const [conversationId, setConversationId] = useState<number | null>(() => {
-    const saved = window.localStorage.getItem('agentify_user_chat_conversation_id');
-    return saved ? Number(saved) : null;
-  });
+  const [conversationId, setConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<UserChatMessage[]>([
     { sender: 'ai', text: 'Chào chị, Lumi Beauty có thể tư vấn sản phẩm, kiểm tra đơn hoặc hỗ trợ đặt hàng ngay trong Zalo.' }
   ]);
@@ -668,7 +665,6 @@ function UserChatScreen() {
   const rememberConversation = (id: number | null | undefined) => {
     if (!id) return;
     setConversationId(id);
-    window.localStorage.setItem('agentify_user_chat_conversation_id', String(id));
   };
 
   const appendAi = (text: string) => setMessages((current) => [...current, { sender: 'ai', text }]);
@@ -729,7 +725,19 @@ function UserChatScreen() {
             <div className="text-sm font-semibold">Lumi Beauty</div>
             <div className="text-xs opacity-90">Shop Chat Zalo</div>
           </div>
-          <button onClick={() => setChannelUserId('')} className="text-xs font-semibold bg-white/20 rounded-full px-3 py-1.5">
+          <button
+            onClick={() => {
+              setChannelUserId('');
+              setConversationId(null);
+              setMessages([{ sender: 'ai', text: 'Chào chị, Lumi Beauty có thể tư vấn sản phẩm, kiểm tra đơn hoặc hỗ trợ đặt hàng ngay trong Zalo.' }]);
+              setInvoice(null);
+              setRecommendedProducts([]);
+              setQuickReplyOptions([]);
+              setUiEvents([]);
+              setActions([]);
+            }}
+            className="text-xs font-semibold bg-white/20 rounded-full px-3 py-1.5"
+          >
             Khách Zalo
           </button>
         </header>
@@ -771,21 +779,6 @@ function UserChatScreen() {
           {!!invoice && invoiceDeliveredOrderId === invoice.order_id && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
               {(uiEvents.find((event) => event.type === 'zalo_invoice_send')?.title) || 'Đã tạo hóa đơn tạm tính và thông báo cho khách.'}
-            </div>
-          )}
-
-          {!!uiEvents.length && (
-            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
-              <div className="mb-1 text-xs font-semibold text-slate-500">Event</div>
-              {uiEvents.map((event, index) => (
-                <div key={`${event.type}-${index}`} className="mb-1">• {event.title}: {event.detail}</div>
-              ))}
-            </div>
-          )}
-
-          {!!actions.length && (
-            <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
-              <strong>Action gần nhất:</strong> {actions.map((item) => item.summary).join(' | ')}
             </div>
           )}
 

@@ -5,12 +5,23 @@ from pydantic import ValidationError
 
 from app.agent.parser import parse_message
 from app.agent.schemas import AgentPlan
+from app.agent.tools import list_agent_tools
 from app.config import get_settings
 
 
 SYSTEM_PROMPT = """Bạn là planner cho Agentify, một nhân viên AI bán hàng tiếng Việt.
 Chỉ trả JSON thuần, không markdown.
-Không tự bịa tool. Tool hợp lệ: search_products, check_stock, create_draft_order, ask_clarification.
+Không tự bịa tool. Tool hợp lệ nằm trong tool_catalog. Các tool quan trọng gồm:
+- list_products: lấy danh sách hàng hóa KiotViet/cache.
+- search_products: tìm sản phẩm theo tên/nhu cầu.
+- recommend_products: gợi ý nhiều sản phẩm theo loại da/ngân sách.
+- check_stock: kiểm tra tồn kho.
+- lookup_order: tra cứu đơn theo SĐT/mã đơn.
+- create_draft_order: chỉ dùng sau khi đủ thông tin và khách xác nhận.
+- create_invoice: xuất hóa đơn từ đơn đã tạo.
+- book_appointment: đặt lịch sau khi khách xác nhận.
+- create_support_ticket: tạo ticket khiếu nại.
+- ask_clarification: hỏi thêm thông tin.
 Intent hợp lệ: product_consultation, buy_product, ask_stock, unknown.
 Nhiệm vụ: trích xuất intent, slots và tool_plan từ tin nhắn khách.
 Slots cần trích xuất kỹ: product_query, quantity, customer_name, customer_phone, shipping_address, payment_method.
@@ -36,7 +47,12 @@ async def plan_with_llm(message: str, *, customer_name: str | None, customer_pho
             {
                 "role": "user",
                 "content": json.dumps(
-                    {"message": message, "customer_name": customer_name, "customer_phone": customer_phone},
+                    {
+                        "message": message,
+                        "customer_name": customer_name,
+                        "customer_phone": customer_phone,
+                        "tool_catalog": list_agent_tools(),
+                    },
                     ensure_ascii=False,
                 ),
             },
