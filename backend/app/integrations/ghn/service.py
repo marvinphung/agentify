@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from sqlalchemy import desc, select
@@ -7,13 +8,66 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.integrations.ghn.client import GHNClient, GHNClientError
-from app.integrations.ghn.schemas import GHNCreateOrderRequest, GHNItem
-from app.models import Order, Shipment, ShipmentEvent
+from app.integrations.ghn.schemas import GHNConnectRequest, GHNConnectResponse, GHNCreateOrderRequest, GHNItem
+from app.models import GHNIntegration, Order, Shipment, ShipmentEvent
+from app.security import encrypt_secret
 from app.shared.workspace import DEFAULT_WORKSPACE_ID
 
 
-def is_ghn_configured() -> bool:
-    return get_settings().ghn_enabled
+def get_ghn_integration(db: Session, workspace_id: int) -> GHNIntegration | None:
+    return db.scalar(select(GHNIntegration).where(GHNIntegration.workspace_id == workspace_id))
+
+
+def is_ghn_configured(db: Session | None = None, workspace_id: int = DEFAULT_WORKSPACE_ID) -> bool:
+    if workspace_id == DEFAULT_WORKSPACE_ID or db is None:
+        return get_settings().ghn_enabled
+    return get_ghn_integration(db, workspace_id) is not None
+
+
+def _ghn_response_from_settings(shop_id: str, *, status: str, raw: dict | None = None) -> GHNConnectResponse:
+    settings = get_settings()
+    detected_shop_name = None
+    if raw:
+        detected_shop_name = raw.get("name") or raw.get("shop_name") or raw.get("shopName")
+    return GHNConnectResponse(
+        status=status,
+        env=settings.ghn_env,
+        shop_id=shop_id,
+        detected_shop_name=detected_shop_name,
+        from_name=settings.ghn_from_name or None,
+        from_phone=settings.ghn_from_phone or None,
+        from_address=settings.ghn_from_address or None,
+    )
+
+
+def preview_ghn(payload: GHNConnectRequest) -> GHNConnectResponse:
+    settings = get_settings()
+    if not settings.ghn_token:
+        raise GHNClientError("Chưa cấu hình GHN_TOKEN trong backend/.env.")
+    raw = GHNClient(settings, shop_id=payload.shop_id).validate_shop(payload.shop_id)
+    return _ghn_response_from_settings(payload.shop_id, status="valid", raw=raw)
+
+
+def authorize_ghn(db: Session, workspace_id: int, payload: GHNConnectRequest) -> GHNConnectResponse:
+    preview = preview_ghn(payload)
+    settings = get_settings()
+    integration = get_ghn_integration(db, workspace_id)
+    if integration is None:
+        integration = GHNIntegration(workspace_id=workspace_id, shop_id=payload.shop_id)
+        db.add(integration)
+    integration.shop_id = payload.shop_id
+    integration.encrypted_token = encrypt_secret(settings.ghn_token) if settings.ghn_token else None
+    integration.env = settings.ghn_env
+    integration.from_name = settings.ghn_from_name or None
+    integration.from_phone = settings.ghn_from_phone or None
+    integration.from_address = settings.ghn_from_address or None
+    integration.from_district_id = settings.ghn_from_district_id
+    integration.from_ward_code = settings.ghn_from_ward_code
+    integration.status = "connected"
+    integration.last_connected_at = datetime.now(UTC)
+    integration.raw_json = preview.model_dump()
+    db.commit()
+    return _ghn_response_from_settings(payload.shop_id, status="connected", raw=integration.raw_json)
 
 
 def latest_shipment_for_order(db: Session, order_id: int) -> Shipment | None:
@@ -26,7 +80,9 @@ def latest_shipment_for_order(db: Session, order_id: int) -> Shipment | None:
 
 def create_ghn_shipment_for_order(db: Session, order: Order) -> tuple[Shipment | None, str]:
     settings = get_settings()
-    if not settings.ghn_enabled:
+    integration = get_ghn_integration(db, order.workspace_id)
+    shop_id = integration.shop_id if integration else settings.ghn_shop_id
+    if not settings.ghn_token or not shop_id:
         return None, "Chưa cấu hình GHN_TOKEN/GHN_SHOP_ID nên chưa gửi vận đơn sang GHN."
     if not order.customer_name or not order.customer_phone or not order.shipping_address:
         return None, "Thiếu tên, SĐT hoặc địa chỉ khách để tạo vận đơn GHN."
@@ -42,12 +98,12 @@ def create_ghn_shipment_for_order(db: Session, order: Order) -> tuple[Shipment |
 
     payload = _build_create_order_payload(order, to_district_id=to_district_id, to_ward_code=to_ward_code)
     try:
-        result = GHNClient(settings).create_order(payload)
+        result = GHNClient(settings, shop_id=shop_id).create_order(payload)
     except GHNClientError as exc:
         return None, str(exc)
 
     shipment = Shipment(
-        workspace_id=DEFAULT_WORKSPACE_ID,
+        workspace_id=order.workspace_id,
         order_id=order.id,
         provider="ghn",
         provider_order_code=result.order_code,
@@ -72,13 +128,15 @@ def create_ghn_shipment_for_order(db: Session, order: Order) -> tuple[Shipment |
 
 def refresh_ghn_tracking(db: Session, shipment: Shipment) -> tuple[Shipment, str]:
     settings = get_settings()
-    if not settings.ghn_enabled:
+    integration = get_ghn_integration(db, shipment.workspace_id)
+    shop_id = integration.shop_id if integration else settings.ghn_shop_id
+    if not settings.ghn_token or not shop_id:
         return shipment, "Chưa cấu hình GHN_TOKEN/GHN_SHOP_ID nên chưa cập nhật được tracking."
     if not shipment.provider_order_code:
         return shipment, "Shipment chưa có mã vận đơn GHN."
 
     try:
-        result = GHNClient(settings).order_detail(shipment.provider_order_code)
+        result = GHNClient(settings, shop_id=shop_id).order_detail(shipment.provider_order_code)
     except GHNClientError as exc:
         return shipment, str(exc)
 

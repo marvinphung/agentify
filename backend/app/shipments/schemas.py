@@ -24,3 +24,13 @@ class ShipmentEventResponse(BaseModel):
     description: str | None
     raw_json: dict[str, Any]
     created_at: datetime
+
+
+class ShippingStatusResponse(BaseModel):
+    provider: str
+    status: str
+    env: str
+    shop_id: str | None
+    from_name: str | None
+    from_phone: str | None
+    from_address: str | None

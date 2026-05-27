@@ -16,3 +16,5 @@ class Workspace(Base):
 
     integrations = relationship("KiotVietIntegration", back_populates="workspace")
     zalo_integrations = relationship("ZaloIntegration", back_populates="workspace")
+    ghn_integrations = relationship("GHNIntegration", back_populates="workspace")
+    memberships = relationship("WorkspaceMembership", back_populates="workspace")

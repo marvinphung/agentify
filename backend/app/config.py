@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     secret_key: str = "change-me"
     fernet_key: str = ""
+    access_token_expire_minutes: int = 60 * 24
+    password_hash_iterations: int = 210_000
 
     kiotviet_token_url: str = "https://id.kiotviet.vn/connect/token"
     kiotviet_api_base_url: str = "https://public.kiotapi.com"

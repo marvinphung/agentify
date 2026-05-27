@@ -55,3 +55,17 @@ class GHNTrackingResult(BaseModel):
     status_name: str | None = None
     expected_delivery_time: str | None = None
     raw: dict = Field(default_factory=dict)
+
+
+class GHNConnectRequest(BaseModel):
+    shop_id: str = Field(min_length=2, max_length=100)
+
+
+class GHNConnectResponse(BaseModel):
+    status: str
+    env: str
+    shop_id: str
+    detected_shop_name: str | None = None
+    from_name: str | None = None
+    from_phone: str | None = None
+    from_address: str | None = None

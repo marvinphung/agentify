@@ -49,6 +49,20 @@ COSMETIC_DEMO_PRODUCTS = [
     {"id": 910006, "code": "CLEAN-GENTLE", "name": "Cleanser Gentle Foam", "basePrice": 190000, "stock": 15, "notes": "sữa rửa mặt dịu nhẹ"},
     {"id": 910007, "code": "NIA-10", "name": "Serum Niacinamide 10%", "basePrice": 260000, "stock": 21, "skin_types": ["da dầu"], "notes": "hỗ trợ ổn định dầu"},
     {"id": 910008, "code": "CERAMIDE-CREAM", "name": "Kem dưỡng Ceramide Cream", "basePrice": 280000, "stock": 16, "notes": "phục hồi hàng rào bảo vệ da"},
+    {"id": 910009, "code": "BHA-CLEAR-2", "name": "BHA Clear Pore 2% 30ml", "basePrice": 310000, "stock": 14, "skin_types": ["da dầu", "da mụn"], "notes": "hỗ trợ làm sạch lỗ chân lông"},
+    {"id": 910010, "code": "AZELAIC-CALM", "name": "Azelaic Calm Serum 10% 30ml", "basePrice": 340000, "stock": 13, "skin_types": ["da mụn", "da nhạy cảm"], "notes": "hỗ trợ làm dịu và đều màu da"},
+    {"id": 910011, "code": "PEPTIDE-FIRM", "name": "Peptide Firming Serum 30ml", "basePrice": 450000, "stock": 11, "skin_types": ["da lão hóa", "da khô"], "notes": "hỗ trợ săn chắc da"},
+    {"id": 910012, "code": "CICA-GEL", "name": "Cica Recovery Gel 50ml", "basePrice": 270000, "stock": 18, "skin_types": ["da nhạy cảm", "da treatment"], "notes": "gel phục hồi làm dịu da"},
+    {"id": 910013, "code": "OIL-CLEANSER", "name": "Dầu tẩy trang Olive Mild 200ml", "basePrice": 245000, "stock": 20, "notes": "tẩy trang dịu nhẹ cho dùng hằng ngày"},
+    {"id": 910014, "code": "CLAY-MATCHA", "name": "Mặt nạ đất sét Matcha Detox 100g", "basePrice": 235000, "stock": 15, "skin_types": ["da dầu"], "notes": "hỗ trợ kiềm dầu vùng chữ T"},
+    {"id": 910015, "code": "BODY-LOTION-B5", "name": "Sữa dưỡng thể B5 Smooth 250ml", "basePrice": 210000, "stock": 24, "notes": "dưỡng ẩm body nhẹ dịu"},
+    {"id": 910016, "code": "HAND-CREAM-SHEA", "name": "Kem dưỡng tay Shea Soft 50ml", "basePrice": 85000, "stock": 32, "notes": "dưỡng mềm da tay"},
+    {"id": 910017, "code": "LIP-MASK-BERRY", "name": "Mặt nạ ngủ môi Berry 15g", "basePrice": 125000, "stock": 27, "notes": "dưỡng môi ban đêm"},
+    {"id": 910018, "code": "VITC-CLEANSER", "name": "Sữa rửa mặt Vitamin C Glow 120ml", "basePrice": 195000, "stock": 17, "skin_types": ["da xỉn màu"], "notes": "làm sạch dịu nhẹ, hỗ trợ sáng da"},
+    {"id": 910019, "code": "RETINAL-MILD", "name": "Retinal Mild Renewal 0.05% 30ml", "basePrice": 520000, "stock": 8, "skin_types": ["da lão hóa", "da treatment"], "notes": "treatment ban đêm mức nhẹ"},
+    {"id": 910020, "code": "SUN-STICK", "name": "Sun Stick Clear Touch SPF50 18g", "basePrice": 300000, "stock": 19, "skin_types": ["da dầu", "da hỗn hợp"], "notes": "chống nắng dạng thỏi tiện dặm lại"},
+    {"id": 910021, "code": "MICELLAR-SENSITIVE", "name": "Nước tẩy trang Micellar Sensitive 400ml", "basePrice": 180000, "stock": 26, "skin_types": ["da nhạy cảm"], "notes": "không cồn, dùng được hằng ngày"},
+    {"id": 910022, "code": "ACNE-PATCH", "name": "Miếng dán mụn Hydrocolloid 24 miếng", "basePrice": 99000, "stock": 40, "skin_types": ["da mụn"], "notes": "che phủ và bảo vệ nốt mụn"},
 ]
 
 KIOTVIET_DEMO_CATEGORY_NAME = "Mỹ phẩm demo Agentify"
@@ -72,16 +86,24 @@ def get_integration(db: Session, workspace_id: int = DEFAULT_WORKSPACE_ID) -> Ki
     return db.scalar(select(KiotVietIntegration).where(KiotVietIntegration.workspace_id == workspace_id))
 
 
-async def connect_kiotviet(db: Session, data: KiotVietConnectRequest) -> tuple[KiotVietIntegration, int]:
-    ensure_default_workspace(db)
+async def preview_kiotviet(data: KiotVietConnectRequest) -> int:
+    client = KiotVietClient(data.retailer, data.client_id, data.client_secret)
+    await client.fetch_token()
+    sample_payload = await client.list_products(page_size=3)
+    return len(extract_products(sample_payload))
+
+
+async def connect_kiotviet(db: Session, data: KiotVietConnectRequest, *, workspace_id: int = DEFAULT_WORKSPACE_ID) -> tuple[KiotVietIntegration, int]:
+    if workspace_id == DEFAULT_WORKSPACE_ID:
+        ensure_default_workspace(db)
     client = KiotVietClient(data.retailer, data.client_id, data.client_secret)
     token, expires_at = await client.fetch_token()
     sample_payload = await client.list_products(page_size=3)
     sample_count = len(extract_products(sample_payload))
 
-    integration = get_integration(db)
+    integration = get_integration(db, workspace_id)
     if integration is None:
-        integration = KiotVietIntegration(workspace_id=DEFAULT_WORKSPACE_ID, retailer=data.retailer, client_id=data.client_id, encrypted_client_secret="")
+        integration = KiotVietIntegration(workspace_id=workspace_id, retailer=data.retailer, client_id=data.client_id, encrypted_client_secret="")
         db.add(integration)
     integration.retailer = data.retailer
     integration.client_id = data.client_id
@@ -139,8 +161,8 @@ def _upsert_product(db: Session, workspace_id: int, product: dict) -> ProductCac
     return row
 
 
-async def sync_products(db: Session, *, page_size: int = 100) -> int:
-    integration = get_integration(db)
+async def sync_products(db: Session, *, page_size: int = 100, workspace_id: int = DEFAULT_WORKSPACE_ID) -> int:
+    integration = get_integration(db, workspace_id)
     if not integration:
         return 0
     client = await client_from_integration(db, integration)
@@ -261,17 +283,17 @@ async def _first_branch_id(client: KiotVietClient) -> int:
     return int(branches[0]["id"])
 
 
-async def list_cached_or_remote_products(db: Session, search: str | None = None) -> list[ProductCache]:
-    query = select(ProductCache).where(ProductCache.workspace_id == DEFAULT_WORKSPACE_ID).order_by(ProductCache.name).limit(50)
+async def list_cached_or_remote_products(db: Session, search: str | None = None, *, workspace_id: int = DEFAULT_WORKSPACE_ID) -> list[ProductCache]:
+    query = select(ProductCache).where(ProductCache.workspace_id == workspace_id).order_by(ProductCache.name).limit(50)
     if search:
         query = select(ProductCache).where(
-            ProductCache.workspace_id == DEFAULT_WORKSPACE_ID,
+            ProductCache.workspace_id == workspace_id,
             ProductCache.name.ilike(f"%{search}%"),
         ).order_by(ProductCache.name).limit(50)
     rows = list(db.scalars(query))
     if rows or not search:
         return rows
-    integration = get_integration(db)
+    integration = get_integration(db, workspace_id)
     if not integration:
         return []
     client = await client_from_integration(db, integration)

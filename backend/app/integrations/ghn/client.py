@@ -11,18 +11,39 @@ class GHNClientError(RuntimeError):
 
 
 class GHNClient:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, token: str | None = None, shop_id: str | None = None):
         self.settings = settings
         self.base_url = settings.ghn_base_url.rstrip("/")
+        self.token = token or settings.ghn_token
+        self.shop_id = shop_id or settings.ghn_shop_id
 
     def _headers(self, *, include_shop: bool = False) -> dict[str, str]:
         headers = {
             "Content-Type": "application/json",
-            "Token": self.settings.ghn_token,
+            "Token": self.token,
         }
         if include_shop:
-            headers["ShopId"] = str(self.settings.ghn_shop_id)
+            headers["ShopId"] = str(self.shop_id)
         return headers
+
+    def validate_shop(self, shop_id: str) -> dict:
+        response = httpx.get(
+            f"{self.base_url}/v2/shop/all",
+            headers=self._headers(),
+            timeout=self.settings.request_timeout_seconds,
+        )
+        body = self._parse_response(response)
+        shops = body.get("data") or {}
+        if isinstance(shops, dict):
+            shops = shops.get("shops") or shops.get("shop") or []
+        if not isinstance(shops, list):
+            shops = []
+        for shop in shops:
+            if str(shop.get("_id") or shop.get("shop_id") or shop.get("id")) == str(shop_id):
+                return shop
+        if shops:
+            raise GHNClientError(f"GHN token hợp lệ nhưng không thấy shop_id {shop_id}.")
+        return {"shop_id": shop_id}
 
     def create_order(self, payload: GHNCreateOrderRequest) -> GHNShipmentResult:
         response = httpx.post(

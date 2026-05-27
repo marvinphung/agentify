@@ -1,13 +1,33 @@
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { Dispatch, ReactNode, SetStateAction, useEffect, useState } from 'react';
 import { LayoutDashboard, Mail, Calendar, AlertCircle, Workflow, Link2, BarChart3, Settings, Bell, ChevronRight, CheckCircle2, Clock, Zap, Users, MessageSquare, Plus, X, Facebook as FacebookIcon, RefreshCw, Download, Filter, Search, ArrowUpRight, Phone, MapPin, ArrowLeft, Send, Smile, Image, Camera, ArrowRight, Play, Pause, Edit, Trash2, Truck } from 'lucide-react';
 import LandingPage from './components/LandingPage';
 
 type Screen = 'overview' | 'inbox' | 'calendar' | 'approval' | 'workflows' | 'integrations' | 'shipping' | 'reports' | 'settings';
-type AppMode = 'landing' | 'connect-zalo' | 'loading-zalo' | 'connect-kiotviet' | 'loading-kiotviet' | 'manage';
+type AppMode =
+  | 'landing'
+  | 'auth-login'
+  | 'auth-register'
+  | 'prod-kiotviet-form'
+  | 'prod-kiotviet-authorize'
+  | 'loading-kiotviet'
+  | 'prod-ghn-form'
+  | 'prod-ghn-authorize'
+  | 'loading-ghn'
+  | 'prod-onboarding-success'
+  | 'manage';
 type Modal = 'create-workflow' | 'connect-system' | 'edit-conversation' | 'appointment-detail' | 'report-filter' | 'report-export' | 'edit-setting' | 'member-detail' | 'invite-member' | 'integration-settings' | null;
 type WorkflowItem = { id: number, name: string, status: 'active' | 'paused', triggers: number, conversions: number, description?: string };
-type ZaloStatus = { status: string, app_id?: string | null, oa_id?: string | null, token_expires_at?: string | null };
 type KiotVietStatus = { status: string, retailer?: string | null, last_sync_at?: string | null };
+type GHNStatus = { provider: string, status: string, env: string, shop_id?: string | null, from_name?: string | null, from_phone?: string | null, from_address?: string | null };
+type OnboardingStatus = 'needs_kiotviet' | 'needs_ghn' | 'ready';
+type AuthUser = { id: number, name: string, email: string };
+type AuthWorkspace = { id: number, name: string, onboarding_status: OnboardingStatus };
+type AuthSession = { access_token: string, token_type: string, user: AuthUser, workspace: AuthWorkspace };
+type KiotVietForm = { retailer: string, client_id: string, client_secret: string };
+type KiotVietPreview = { status: string, retailer: string, detected_shop_name: string, sample_product_count: number };
+type KiotVietAuthorize = { status: string, retailer: string, sample_product_count: number, synced_product_count: number };
+type GHNForm = { shop_id: string };
+type GHNPreview = { status: string, env: string, shop_id: string, detected_shop_name?: string | null, from_name?: string | null, from_phone?: string | null, from_address?: string | null };
 type ProductItem = { id: number, name: string, code?: string | null, base_price: string, stock: number };
 type ChatAction = { type: string, status: string, summary: string };
 type ChatOrder = { id: number, kiotviet_order_code?: string | null, status: string, total: string, customer_name?: string | null, customer_phone?: string | null, shipping_address?: string | null, items?: { name: string, quantity: number, price: number }[] };
@@ -27,7 +47,6 @@ type DemoChatResponse = {
   quick_replies: string[],
   ui_events: UiEvent[],
 };
-type ZaloDemoConnectResponse = { status: string, oa_id: string | null, message: string };
 type AgentChatResponse = { conversation_id: number | null, intent: string, reply: string, recommended_products: { id: number, name: string, price: number, stock: number, reason: string }[], quick_replies: string[], actions: string[] };
 type UserChatMessage = { sender: 'customer' | 'ai', text: string };
 type ConversationItem = { id: number, customer_name: string, customer_phone?: string | null, channel: string, status: string, created_at: string };
@@ -45,6 +64,7 @@ const CONNECT_DELAY_MS = {
 const randomConnectDelay = () => CONNECT_DELAY_MS.min + Math.floor(Math.random() * (CONNECT_DELAY_MS.max - CONNECT_DELAY_MS.min));
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const AUTH_TOKEN_KEY = 'agentify_owner_access_token';
 const sunscreenRecommendations: Recommendation[] = [
   { name: 'Kem chống nắng kiềm dầu SkinPure SPF50 50ml', price: 235000, fit: 'Phù hợp da dầu, cần finish ráo nhẹ', skin: 'Da dầu', image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80' },
   { name: 'Kem chống nắng cho da mụn AcneSafe SPF50 50ml', price: 330000, fit: 'Ưu tiên da mụn, dễ bí tắc, cần công thức nhẹ', skin: 'Da mụn', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?auto=format&fit=crop&w=600&q=80' },
@@ -67,11 +87,12 @@ const cleanserRecommendations: Recommendation[] = [
   { name: 'Sữa rửa mặt trà xanh 150ml', price: 165000, fit: 'Hợp da dầu, da mụn nhẹ, cần cảm giác sạch thoáng', skin: 'Da dầu', image: 'https://images.unsplash.com/photo-1571781926291-c477ebfd024b?auto=format&fit=crop&w=600&q=80' },
 ];
 
-async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
+async function apiRequest<T>(path: string, options?: RequestInit, authToken?: string | null): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...(options?.headers || {})
     }
   });
@@ -79,7 +100,7 @@ async function apiRequest<T>(path: string, options?: RequestInit): Promise<T> {
     let message = 'Không gọi được backend Agentify.';
     try {
       const body = await response.json();
-      message = body?.error?.message || message;
+      message = body?.error?.message || body?.detail || message;
     } catch {
       message = `${message} Mã lỗi ${response.status}.`;
     }
@@ -108,21 +129,29 @@ export default function App() {
     { id: 4, name: 'Chuyển câu hỏi rủi ro cho nhân viên', status: 'active', triggers: 18, conversions: 18 },
     { id: 5, name: 'Gửi khảo sát sau dịch vụ', status: 'paused', triggers: 0, conversions: 0 }
   ]);
-  const [zaloStatus, setZaloStatus] = useState<ZaloStatus>({ status: 'disconnected' });
   const [kiotStatus, setKiotStatus] = useState<KiotVietStatus>({ status: 'disconnected' });
+  const [ghnStatus, setGhnStatus] = useState<GHNStatus>({ provider: 'GHN', status: 'disconnected', env: 'sandbox' });
   const [productCount, setProductCount] = useState(0);
   const [lastDemoResult, setLastDemoResult] = useState<DemoChatResponse | null>(null);
   const [backendReady, setBackendReady] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(() => window.localStorage.getItem(AUTH_TOKEN_KEY));
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authWorkspace, setAuthWorkspace] = useState<AuthWorkspace | null>(null);
+  const [kiotForm, setKiotForm] = useState<KiotVietForm>({ retailer: '', client_id: '', client_secret: '' });
+  const [kiotPreview, setKiotPreview] = useState<KiotVietPreview | null>(null);
+  const [ghnForm, setGhnForm] = useState<GHNForm>({ shop_id: '' });
+  const [ghnPreview, setGhnPreview] = useState<GHNPreview | null>(null);
 
-  const refreshBackendState = async () => {
+  const refreshBackendState = async (tokenOverride?: string | null) => {
+    const token = tokenOverride === undefined ? authToken : tokenOverride;
     try {
       await apiRequest<{ status: string }>('/health');
       setBackendReady(true);
-      const zalo = await apiRequest<ZaloStatus>('/api/channels/zalo/connect/status');
-      setZaloStatus(zalo);
-      const status = await apiRequest<KiotVietStatus>('/api/integrations/kiotviet/status');
+      const status = await apiRequest<KiotVietStatus>('/api/integrations/kiotviet/status', undefined, token);
       setKiotStatus(status);
-      const products = await apiRequest<ProductItem[]>('/api/kiotviet/products');
+      const shipping = await apiRequest<GHNStatus>('/api/shipments/status', undefined, token);
+      setGhnStatus(shipping);
+      const products = await apiRequest<ProductItem[]>('/api/kiotviet/products', undefined, token);
       setProductCount(products.length);
     } catch {
       setBackendReady(false);
@@ -139,25 +168,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', syncPathname);
   }, []);
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const zaloConnected = params.get('zalo_connected');
-    const message = params.get('message');
-    if (zaloConnected === '1') {
-      notify('Đã kết nối Zalo OA thành công.');
-      setAppMode('connect-kiotviet');
-      void refreshBackendState();
-    } else if (zaloConnected === '0') {
-      notify(`Kết nối Zalo OA thất bại: ${message || 'Vui lòng thử lại bằng cách kết nối thủ công.'}`);
-      setAppMode('connect-zalo');
-    }
-    if (zaloConnected) {
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, '', cleanUrl);
-      setPathname(cleanUrl);
-    }
-  }, []);
-
   if (pathname === '/user_chat') {
     return <UserChatScreen />;
   }
@@ -171,55 +181,129 @@ export default function App() {
     setPathname(path);
   };
 
+  const applyAuthSession = (session: AuthSession) => {
+    window.localStorage.setItem(AUTH_TOKEN_KEY, session.access_token);
+    setAuthToken(session.access_token);
+    setAuthUser(session.user);
+    setAuthWorkspace(session.workspace);
+    refreshBackendState(session.access_token);
+    routeByOnboardingStatus(session.workspace.onboarding_status);
+  };
+
+  const clearAuthSession = () => {
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    setAuthToken(null);
+    setAuthUser(null);
+    setAuthWorkspace(null);
+    setKiotPreview(null);
+    setGhnPreview(null);
+    setAppMode('auth-login');
+  };
+
+  const routeByOnboardingStatus = (status: OnboardingStatus) => {
+    if (status === 'needs_kiotviet') setAppMode('prod-kiotviet-form');
+    else if (status === 'needs_ghn') setAppMode('prod-ghn-form');
+    else {
+      setActiveScreen('overview');
+      setAppMode('manage');
+    }
+  };
+
+  const enterShopFlow = async () => {
+    setToast(null);
+    if (!authToken) {
+      setAppMode('auth-login');
+      return;
+    }
+    try {
+      const session = await apiRequest<{ user: AuthUser, workspace: AuthWorkspace }>('/api/auth/me', undefined, authToken);
+      setAuthUser(session.user);
+      setAuthWorkspace(session.workspace);
+      await refreshBackendState(authToken);
+      routeByOnboardingStatus(session.workspace.onboarding_status);
+    } catch (error) {
+      clearAuthSession();
+      notify(error instanceof Error ? error.message : 'Phiên đăng nhập đã hết hạn.');
+    }
+  };
+
   const selectChannel = (channel: string) => {
     setChannelFilter(channel);
     notify(`Đang lọc dữ liệu theo kênh: ${channel}`);
   };
 
-  const startDemo = () => {
+  const previewKiotVietConnection = async () => {
     setToast(null);
-    setAppMode('connect-zalo');
-  };
-
-  const completeZaloFakeAuthorization = async () => {
-    setToast(null);
-    setAppMode('loading-zalo');
+    setAppMode('loading-kiotviet');
     try {
-      await delay(randomConnectDelay());
-      const result = await apiRequest<ZaloDemoConnectResponse>('/api/channels/zalo/connect/demo', {
+      const preview = await apiRequest<KiotVietPreview>('/api/integrations/kiotviet/preview', {
         method: 'POST',
-      });
-      await refreshBackendState();
-      setToast(result.message || 'Đã kết nối Zalo OA.');
-      setAppMode('connect-kiotviet');
+        body: JSON.stringify(kiotForm),
+      }, authToken);
+      setKiotPreview(preview);
+      setAppMode('prod-kiotviet-authorize');
     } catch (error) {
-      setAppMode('connect-zalo');
-      notify(error instanceof Error ? error.message : 'Không thể fake kết nối Zalo.');
+      setAppMode('prod-kiotviet-form');
+      notify(error instanceof Error ? error.message : 'Không kết nối được KiotViet');
     }
   };
 
-  const completeKiotVietConnection = async () => {
+  const authorizeKiotVietConnection = async () => {
     setToast(null);
     setAppMode('loading-kiotviet');
     try {
       await delay(randomConnectDelay());
-      await apiRequest('/api/integrations/kiotviet/connect/env', {
+      const result = await apiRequest<KiotVietAuthorize>('/api/integrations/kiotviet/authorize', {
         method: 'POST',
-      });
-      const status = await apiRequest<KiotVietStatus>('/api/integrations/kiotviet/status');
-      if (status.status !== 'connected' || status.retailer !== 'bietkhongnhe123') {
-        throw new Error('Không kết nối được KiotViet từ cấu hình backend.');
-      }
-      await apiRequest('/api/integrations/kiotviet/sync-products', { method: 'POST' });
-      await refreshBackendState();
-      setToast('Kết nối KiotViet thành công. Đang mở giao diện quản lý.');
-      window.setTimeout(() => {
-        setActiveScreen('overview');
-        setAppMode('manage');
-      }, 700);
+        body: JSON.stringify(kiotForm),
+      }, authToken);
+      await refreshBackendState(authToken);
+      const me = await apiRequest<{ user: AuthUser, workspace: AuthWorkspace }>('/api/auth/me', undefined, authToken);
+      setAuthUser(me.user);
+      setAuthWorkspace(me.workspace);
+      setToast(`Kết nối KiotViet thành công, đã đồng bộ ${result.synced_product_count} sản phẩm.`);
+      setAppMode('prod-ghn-form');
     } catch (error) {
-      setAppMode('connect-kiotviet');
-      notify(error instanceof Error ? error.message : 'Không kết nối được KiotViet');
+      setAppMode('prod-kiotviet-authorize');
+      notify(error instanceof Error ? error.message : 'Không lưu được kết nối KiotViet');
+    }
+  };
+
+  const previewGHNConnection = async () => {
+    setToast(null);
+    setAppMode('loading-ghn');
+    try {
+      const preview = await apiRequest<GHNPreview>('/api/integrations/ghn/preview', {
+        method: 'POST',
+        body: JSON.stringify(ghnForm),
+      }, authToken);
+      setGhnPreview(preview);
+      setAppMode('prod-ghn-authorize');
+    } catch (error) {
+      setAppMode('prod-ghn-form');
+      notify(error instanceof Error ? error.message : 'Không kết nối được GHN');
+    }
+  };
+
+  const authorizeGHNConnection = async () => {
+    setToast(null);
+    setAppMode('loading-ghn');
+    try {
+      await delay(randomConnectDelay());
+      const result = await apiRequest<GHNPreview>('/api/integrations/ghn/authorize', {
+        method: 'POST',
+        body: JSON.stringify(ghnForm),
+      }, authToken);
+      setGhnPreview(result);
+      await refreshBackendState(authToken);
+      const me = await apiRequest<{ user: AuthUser, workspace: AuthWorkspace }>('/api/auth/me', undefined, authToken);
+      setAuthUser(me.user);
+      setAuthWorkspace(me.workspace);
+      setToast('Kết nối GHN thành công.');
+      setAppMode('prod-onboarding-success');
+    } catch (error) {
+      setAppMode('prod-ghn-authorize');
+      notify(error instanceof Error ? error.message : 'Không lưu được kết nối GHN');
     }
   };
 
@@ -252,7 +336,7 @@ export default function App() {
     return (
       <div className="size-full overflow-auto">
         <LandingPage
-          onEnterDemo={startDemo}
+          onEnterDemo={enterShopFlow}
           onEnterChat={() => navigateTo('/user_chat')}
         />
         {toast && <Toast message={toast} />}
@@ -260,36 +344,97 @@ export default function App() {
     );
   }
 
-  if (appMode === 'connect-zalo') {
+  if (appMode === 'auth-login') {
     return (
-      <ZaloConnectScreen
-        status={zaloStatus}
-        onPrimary={completeZaloFakeAuthorization}
+      <AuthScreen
+        mode="login"
+        onSubmit={applyAuthSession}
+        onSwitch={() => setAppMode('auth-register')}
         onBack={() => setAppMode('landing')}
+        toast={toast}
       />
     );
   }
 
-  if (appMode === 'loading-zalo') {
-    return <ConnectionLoadingScreen title="Đang kết nối Zalo OA" description="Agentify đang xác thực quyền truy cập và đồng bộ hội thoại mẫu." />;
+  if (appMode === 'auth-register') {
+    return (
+      <AuthScreen
+        mode="register"
+        onSubmit={applyAuthSession}
+        onSwitch={() => setAppMode('auth-login')}
+        onBack={() => setAppMode('landing')}
+        toast={toast}
+      />
+    );
   }
 
-  if (appMode === 'connect-kiotviet') {
+  if (appMode === 'prod-kiotviet-form') {
     return (
-      <KiotVietConnectScreen
-        status={kiotStatus}
-        productCount={productCount}
+      <KiotVietCredentialScreen
+        form={kiotForm}
+        setForm={setKiotForm}
+        onPrimary={previewKiotVietConnection}
+        onBack={() => setAppMode('landing')}
+        toast={toast}
+      />
+    );
+  }
+
+  if (appMode === 'prod-kiotviet-authorize') {
+    return (
+      <KiotVietAuthorizeScreen
+        preview={kiotPreview}
         backendReady={backendReady}
-        onPrimary={completeKiotVietConnection}
-        onBack={() => setAppMode('connect-zalo')}
-        onRefresh={refreshBackendState}
+        productCount={productCount}
+        onPrimary={authorizeKiotVietConnection}
+        onBack={() => setAppMode('prod-kiotviet-form')}
         toast={toast}
       />
     );
   }
 
   if (appMode === 'loading-kiotviet') {
-    return <ConnectionLoadingScreen title="Đang kết nối KiotViet" description="Agentify đang kiểm tra API, lấy dữ liệu dịch vụ và chuẩn bị workflow demo." />;
+    return <ConnectionLoadingScreen title="Đang kết nối KiotViet" description="Agentify đang kiểm tra API, đồng bộ hàng hóa và chuẩn bị workflow bán hàng." />;
+  }
+
+  if (appMode === 'prod-ghn-form') {
+    return (
+      <GHNCredentialScreen
+        form={ghnForm}
+        setForm={setGhnForm}
+        onPrimary={previewGHNConnection}
+        onBack={() => setAppMode('prod-kiotviet-form')}
+        toast={toast}
+      />
+    );
+  }
+
+  if (appMode === 'prod-ghn-authorize') {
+    return (
+      <GHNAuthorizeScreen
+        preview={ghnPreview}
+        backendReady={backendReady}
+        onPrimary={authorizeGHNConnection}
+        onBack={() => setAppMode('prod-ghn-form')}
+        toast={toast}
+      />
+    );
+  }
+
+  if (appMode === 'loading-ghn') {
+    return <ConnectionLoadingScreen title="Đang kết nối GHN" description="Agentify đang kiểm tra token, shop ID và cấu hình kho gửi hàng GHN sandbox." />;
+  }
+
+  if (appMode === 'prod-onboarding-success') {
+    return (
+      <OnboardingSuccessScreen
+        workspaceName={authWorkspace?.name || 'Shop của bạn'}
+        onPrimary={() => {
+          setActiveScreen('overview');
+          setAppMode('manage');
+        }}
+      />
+    );
   }
 
   return (
@@ -321,7 +466,7 @@ export default function App() {
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
               <span className="text-sm text-slate-600">Không gian làm việc:</span>
-              <span className="font-semibold text-slate-900">Lumi Clinic</span>
+              <span className="font-semibold text-slate-900">{authWorkspace?.name || 'Lumi Clinic'}</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-1.5 bg-teal-50 text-teal-700 rounded-full text-sm">
               <Zap className="w-4 h-4" />
@@ -358,20 +503,23 @@ export default function App() {
               }}
               className="w-8 h-8 bg-teal-100 rounded-full flex items-center justify-center hover:ring-2 hover:ring-teal-200"
             >
-              <span className="text-sm font-semibold text-teal-700">MA</span>
+              <span className="text-sm font-semibold text-teal-700">{(authUser?.name || 'MA').slice(0, 2).toUpperCase()}</span>
+            </button>
+            <button onClick={clearAuthSession} className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+              Đăng xuất
             </button>
           </div>
         </header>
 
         {/* Screen Content */}
         <main className="flex-1 overflow-auto">
-          {activeScreen === 'overview' && <OverviewScreen onNavigate={setActiveScreen} kiotStatus={kiotStatus} productCount={productCount} lastDemoResult={lastDemoResult} />}
+          {activeScreen === 'overview' && <OverviewScreen onNavigate={setActiveScreen} kiotStatus={kiotStatus} ghnStatus={ghnStatus} productCount={productCount} lastDemoResult={lastDemoResult} />}
           {activeScreen === 'inbox' && <InboxScreen onNavigate={setActiveScreen} onOpenModal={setModal} onNotify={notify} onDemoResult={setLastDemoResult} />}
           {activeScreen === 'calendar' && <CalendarScreen onNavigate={setActiveScreen} onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'approval' && <ApprovalScreen onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'workflows' && <WorkflowsScreen workflows={workflows} setWorkflows={setWorkflows} onOpenModal={setModal} onNotify={notify} />}
-          {activeScreen === 'integrations' && <IntegrationsScreen onOpenModal={setModal} onNotify={notify} kiotStatus={kiotStatus} productCount={productCount} onRefresh={refreshBackendState} />}
-          {activeScreen === 'shipping' && <ShippingScreen onNotify={notify} />}
+          {activeScreen === 'integrations' && <IntegrationsScreen onOpenModal={setModal} onNotify={notify} kiotStatus={kiotStatus} ghnStatus={ghnStatus} productCount={productCount} onRefresh={() => refreshBackendState(authToken)} authToken={authToken} />}
+          {activeScreen === 'shipping' && <ShippingScreen onNotify={notify} authToken={authToken} />}
           {activeScreen === 'reports' && <ReportsScreen onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'settings' && <SettingsScreen onOpenModal={setModal} onNotify={notify} />}
         </main>
@@ -572,90 +720,6 @@ function ConnectionLoadingScreen({ title, description }: { title: string, descri
   );
 }
 
-function ZaloConnectScreen({
-  status,
-  onPrimary,
-  onBack,
-}: {
-  status: ZaloStatus,
-  onPrimary: () => void,
-  onBack: () => void,
-}) {
-  const isConnected = status.status === 'connected' || status.status === 'demo';
-
-  return (
-    <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-xl">
-        <header className="mb-5 flex items-start justify-between gap-3">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-              Bước 1/2
-            </div>
-            <h1 className="mt-3 text-2xl font-bold leading-tight">Authorize Agentify + Zalo OA</h1>
-            <p className="mt-1 text-sm text-slate-500">Đăng nhập bằng tài khoản shop để tiếp tục kết nối hệ thống.</p>
-          </div>
-          <button onClick={onBack} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-            Đóng
-          </button>
-        </header>
-
-        <section className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-4 flex items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-4">
-            <img src="/agentify-logo.png" alt="Agentify" className="h-14 w-14 rounded-xl border border-slate-200 object-cover bg-white" />
-            <div className="h-9 w-9 rounded-full bg-[#0084ff] text-white flex items-center justify-center font-bold">Z</div>
-            <img
-              src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=60"
-              alt="avatar"
-              className="h-14 w-14 rounded-full border border-slate-200 object-cover"
-            />
-            <div>
-              <p className="text-sm text-slate-500">Tài khoản shop</p>
-              <p className="text-sm font-semibold text-slate-900">@bikestore_demo</p>
-            </div>
-          </div>
-
-          <h2 className="text-lg font-bold text-slate-900">Agentify muốn truy cập vào Zalo OA của bạn</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            Tạo một kết nối an toàn giữa tài khoản shop và Agentify để đọc tin nhắn, phản hồi tự động và kích hoạt quy trình bán hàng.
-          </p>
-
-          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            <div className="font-semibold">Quyền truy cập theo yêu cầu</div>
-            <ul className="mt-2 space-y-1 text-sm">
-              <li>• Nhận tin nhắn từ khách trên Zalo OA</li>
-              <li>• Trả lời và gửi nội dung tự động</li>
-              <li>• Đồng bộ cuộc hội thoại để quản lý trong dashboard</li>
-              <li>• Tạo hóa đơn điện tử sau khi khách đặt đơn</li>
-            </ul>
-          </div>
-
-          <div className="mt-5 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span>Trạng thái</span>
-              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${isConnected ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
-                {isConnected ? 'Sẵn sàng xác nhận lại' : 'Chưa cho phép'}
-              </span>
-            </div>
-            <div className="text-slate-600">Môi trường: shop demo</div>
-          </div>
-
-          <div className="mt-6">
-            <button
-              onClick={onPrimary}
-              className="w-full rounded-lg bg-[#0084ff] px-4 py-3 text-sm font-bold text-white shadow hover:opacity-90"
-            >
-              Cho phép truy cập
-            </button>
-            <p className="mt-2 text-center text-[11px] text-slate-500">
-              Bấm cho phép để mô phỏng luồng OAuth như app thực tế.
-            </p>
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
-
 function UserChatScreen() {
   const [customerName] = useState('Khách Zalo');
   const [customerPhone] = useState('');
@@ -849,6 +913,251 @@ function UserChatScreen() {
   );
 }
 
+function AuthScreen({
+  mode,
+  onSubmit,
+  onSwitch,
+  onBack,
+  toast,
+}: {
+  mode: 'login' | 'register',
+  onSubmit: (session: AuthSession) => void,
+  onSwitch: () => void,
+  onBack: () => void,
+  toast: string | null
+}) {
+  const [name, setName] = useState('Lumi Beauty');
+  const [shopName, setShopName] = useState('Lumi Beauty');
+  const [email, setEmail] = useState('owner@lumibeauty.vn');
+  const [password, setPassword] = useState('12345678');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isRegister = mode === 'register';
+
+  const submit = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const payload = isRegister ? { name, shop_name: shopName, email, password } : { email, password };
+      const session = await apiRequest<AuthSession>(isRegister ? '/api/auth/register' : '/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      onSubmit(session);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không đăng nhập được.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[0.95fr_1.05fr]">
+        <section className="bg-slate-950 p-8 text-white">
+          <button onClick={onBack} className="mb-10 inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white/80 hover:bg-white/10">
+            <ArrowLeft className="h-4 w-4" />
+            Về landing
+          </button>
+          <img src="/agentify-logo.png" alt="Agentify" className="mb-5 h-14 w-14 rounded-2xl bg-white p-2" />
+          <h1 className="max-w-md text-4xl font-bold leading-tight">Đăng nhập để kết nối shop thật</h1>
+          <p className="mt-5 max-w-md leading-7 text-slate-300">
+            Tài khoản này dùng cho chủ shop. Sau khi vào hệ thống, shop sẽ kết nối KiotViet và GHN bằng thông tin thật.
+          </p>
+          <div className="mt-8 grid gap-3 text-sm text-slate-200">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">1. Tạo workspace riêng cho shop</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">2. Lưu key kết nối đã mã hóa</div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">3. Vào dashboard quản lý sau onboarding</div>
+          </div>
+        </section>
+        <section className="flex items-center justify-center p-6">
+          <div className="w-full max-w-md">
+            <div className="mb-6">
+              <div className="text-sm font-bold uppercase tracking-[0.18em] text-teal-600">{isRegister ? 'Đăng ký' : 'Đăng nhập'}</div>
+              <h2 className="mt-2 text-3xl font-bold text-slate-950">{isRegister ? 'Tạo tài khoản shop' : 'Vào Agentify'}</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                {isRegister ? 'Dùng email, mật khẩu và tên shop để bắt đầu.' : 'Dùng tài khoản chủ shop để tiếp tục onboarding.'}
+              </p>
+            </div>
+            <div className="space-y-4">
+              {isRegister && (
+                <>
+                  <LabeledInput label="Tên người dùng" value={name} onChange={setName} />
+                  <LabeledInput label="Tên shop" value={shopName} onChange={setShopName} />
+                </>
+              )}
+              <LabeledInput label="Email" value={email} onChange={setEmail} type="email" />
+              <LabeledInput label="Mật khẩu" value={password} onChange={setPassword} type="password" />
+              {error && <div className="rounded-xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
+              <button
+                onClick={submit}
+                disabled={loading}
+                className="w-full rounded-xl bg-teal-600 px-5 py-3 text-sm font-bold text-white hover:bg-teal-700 disabled:opacity-60"
+              >
+                {loading ? 'Đang xử lý...' : isRegister ? 'Tạo tài khoản và tiếp tục' : 'Đăng nhập'}
+              </button>
+              <button onClick={onSwitch} className="w-full rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                {isRegister ? 'Đã có tài khoản, đăng nhập' : 'Chưa có tài khoản, đăng ký'}
+              </button>
+            </div>
+          </div>
+        </section>
+      </div>
+      {toast && <Toast message={toast} />}
+    </div>
+  );
+}
+
+function LabeledInput({ label, value, onChange, type = 'text', placeholder }: { label: string, value: string, onChange: (value: string) => void, type?: string, placeholder?: string }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>
+      <input
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-100"
+      />
+    </label>
+  );
+}
+
+function KiotVietCredentialScreen({ form, setForm, onPrimary, onBack, toast }: { form: KiotVietForm, setForm: Dispatch<SetStateAction<KiotVietForm>>, onPrimary: () => void, onBack: () => void, toast: string | null }) {
+  return (
+    <CredentialShell
+      step="Bước 1/2"
+      title="Kết nối KiotViet"
+      description="Nhập thông tin API của gian hàng. Agentify sẽ kiểm tra trước, sau đó mới hiện màn authorize để chủ shop xác nhận."
+      logo={<div className="h-12 w-12 rounded-2xl bg-emerald-600 text-lg font-bold text-white flex items-center justify-center">K</div>}
+      guideSrc="/guide/kiotviet/video_huong_dan_lay_connect_kiotviet.mp4"
+      onBack={onBack}
+      onPrimary={onPrimary}
+      primaryLabel="Kiểm tra KiotViet"
+      toast={toast}
+    >
+      <LabeledInput label="Tên shop / Retailer" value={form.retailer} onChange={(value) => setForm((current) => ({ ...current, retailer: value }))} placeholder="shophihi123" />
+      <LabeledInput label="Mã khách hàng / Client ID" value={form.client_id} onChange={(value) => setForm((current) => ({ ...current, client_id: value }))} />
+      <LabeledInput label="Mã bí mật / Client Secret" value={form.client_secret} onChange={(value) => setForm((current) => ({ ...current, client_secret: value }))} type="password" />
+    </CredentialShell>
+  );
+}
+
+function GHNCredentialScreen({ form, setForm, onPrimary, onBack, toast }: { form: GHNForm, setForm: Dispatch<SetStateAction<GHNForm>>, onPrimary: () => void, onBack: () => void, toast: string | null }) {
+  return (
+    <CredentialShell
+      step="Bước 2/2"
+      title="Kết nối GHN"
+      description="Nhập Shop ID GHN sandbox. Agentify dùng GHN_TOKEN đã cấu hình ở backend để nhận diện shop và kho lấy hàng."
+      logo={<div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-600 text-white"><Truck className="h-6 w-6" /></div>}
+      guideSrc="/guide/ghn/video_huong_dan_connect_ghn.mp4"
+      onBack={onBack}
+      onPrimary={onPrimary}
+      primaryLabel="Kiểm tra GHN"
+      toast={toast}
+    >
+      <LabeledInput label="Mã khách hàng GHN / Shop ID" value={form.shop_id} onChange={(value) => setForm({ shop_id: value })} placeholder="200457" />
+    </CredentialShell>
+  );
+}
+
+function CredentialShell({
+  step,
+  title,
+  description,
+  logo,
+  guideSrc,
+  children,
+  primaryLabel,
+  onPrimary,
+  onBack,
+  toast,
+}: {
+  step: string,
+  title: string,
+  description: string,
+  logo: ReactNode,
+  guideSrc: string,
+  children: ReactNode,
+  primaryLabel: string,
+  onPrimary: () => void,
+  onBack: () => void,
+  toast: string | null,
+}) {
+  return (
+    <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-6xl gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
+          <button onClick={onBack} className="mb-5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Quay lại</button>
+          <div className="mb-3 inline-flex rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-bold text-teal-700">{step}</div>
+          <div className="mb-5 flex items-center gap-3">
+            <img src="/agentify-logo.png" alt="Agentify" className="h-12 w-12 rounded-2xl border border-slate-200 bg-white" />
+            <div className="text-xl font-bold text-slate-400">+</div>
+            {logo}
+          </div>
+          <h1 className="text-3xl font-bold">{title}</h1>
+          <p className="mt-3 leading-7 text-slate-600">{description}</p>
+          <div className="mt-6 space-y-4">{children}</div>
+          <button onClick={onPrimary} className="mt-6 w-full rounded-xl bg-teal-600 px-5 py-3 text-sm font-bold text-white hover:bg-teal-700">
+            {primaryLabel}
+          </button>
+        </section>
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-xl">
+          <div className="mb-3 px-2 text-sm font-bold text-slate-700">Video hướng dẫn lấy thông tin</div>
+          <video className="h-full max-h-[720px] w-full rounded-2xl bg-slate-950 object-contain" src={guideSrc} controls />
+        </section>
+      </div>
+      {toast && <Toast message={toast} />}
+    </div>
+  );
+}
+
+function KiotVietAuthorizeScreen({ preview, backendReady, productCount, onPrimary, onBack, toast }: { preview: KiotVietPreview | null, backendReady: boolean, productCount: number, onPrimary: () => void, onBack: () => void, toast: string | null }) {
+  return (
+    <KiotVietConnectScreen
+      status={{ status: preview?.status === 'valid' ? 'connected' : 'disconnected', retailer: preview?.retailer }}
+      productCount={productCount}
+      backendReady={backendReady}
+      onPrimary={onPrimary}
+      onBack={onBack}
+      onRefresh={() => {}}
+      toast={toast}
+    />
+  );
+}
+
+function GHNAuthorizeScreen({ preview, backendReady, onPrimary, onBack, toast }: { preview: GHNPreview | null, backendReady: boolean, onPrimary: () => void, onBack: () => void, toast: string | null }) {
+  return (
+    <GHNConnectScreen
+      status={{ provider: 'GHN', status: preview?.status === 'valid' ? 'connected' : 'disconnected', env: preview?.env || 'sandbox', shop_id: preview?.shop_id, from_name: preview?.from_name, from_phone: preview?.from_phone, from_address: preview?.from_address }}
+      backendReady={backendReady}
+      onPrimary={onPrimary}
+      onBack={onBack}
+      onRefresh={() => {}}
+      toast={toast}
+    />
+  );
+}
+
+function OnboardingSuccessScreen({ workspaceName, onPrimary }: { workspaceName: string, onPrimary: () => void }) {
+  return (
+    <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-xl flex-col items-center justify-center rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
+        <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50">
+          <CheckCircle2 className="h-11 w-11 text-emerald-600" />
+        </div>
+        <h1 className="text-3xl font-bold">Shop đã sẵn sàng</h1>
+        <p className="mt-3 max-w-md leading-7 text-slate-600">
+          {workspaceName} đã kết nối KiotViet và GHN. Agentify có thể dùng dữ liệu shop để quản lý hội thoại, đơn hàng và vận chuyển.
+        </p>
+        <button onClick={onPrimary} className="mt-8 rounded-xl bg-teal-600 px-6 py-3 text-sm font-bold text-white hover:bg-teal-700">
+          Vào giao diện quản lý
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function KiotVietConnectScreen({
   status,
   productCount,
@@ -867,8 +1176,7 @@ function KiotVietConnectScreen({
   toast: string | null
 }) {
   const connected = status.status === 'connected';
-  const retailer = status.retailer || 'bietkhongnhe123';
-  const clientId = 'aa4618b7-4233-4340-878c-eec4edfb0761';
+  const retailer = status.retailer || 'đọc từ backend/.env';
 
   return (
     <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
@@ -876,10 +1184,10 @@ function KiotVietConnectScreen({
         <header className="mb-5 flex items-start justify-between gap-3">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              Bước 2/2
+              Bước 1/2
             </div>
             <h1 className="mt-3 text-2xl font-bold leading-tight">Authorize Agentify + KiotViet</h1>
-            <p className="mt-1 text-sm text-slate-500">Đang dùng cấu hình shop demo trong backend.</p>
+            <p className="mt-1 text-sm text-slate-500">Kết nối kho hàng, tồn kho và đơn hàng của shop.</p>
           </div>
           <button onClick={onBack} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             Quay lại
@@ -899,13 +1207,13 @@ function KiotVietConnectScreen({
             </div>
             <h2 className="text-lg font-bold text-slate-900">Đăng nhập bằng tài khoản shop</h2>
             <p className="mt-2 text-sm text-slate-600">Tên gian hàng: <span className="font-semibold">{retailer}</span></p>
-            <p className="text-sm text-slate-600">Client ID: <span className="font-semibold">{clientId}</span></p>
+            <p className="text-sm text-slate-600">Agentify đã kiểm tra thông tin API. Chủ shop bấm kết nối để cho phép đồng bộ dữ liệu.</p>
           </div>
 
           <h3 className="text-sm font-semibold text-slate-900">Thông tin quyền truy cập</h3>
           <ul className="mt-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700 space-y-2">
             <li>• Đọc sản phẩm, tồn kho, đơn hàng.</li>
-            <li>• Tạo đơn tạm tính cho hội thoại từ Zalo OA.</li>
+            <li>• Tạo đơn tạm tính khi khách xác nhận mua hàng.</li>
             <li>• Tự động điền thông tin khách và địa chỉ giao.</li>
           </ul>
 
@@ -919,7 +1227,7 @@ function KiotVietConnectScreen({
             <div className="flex items-center justify-between">
               <span>KiotViet</span>
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                {connected ? `Đã kết nối ${status.retailer || 'bietkhongnhe123'}` : 'Chưa kết nối'}
+                {connected ? `Đã kết nối ${status.retailer || 'KiotViet'}` : 'Chưa kết nối'}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -933,7 +1241,7 @@ function KiotVietConnectScreen({
               onClick={onPrimary}
               className="rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700"
             >
-              {connected ? 'Đồng bộ và mở quản lý' : 'Kết nối KiotViet'}
+              {connected ? 'Authorize và đồng bộ KiotViet' : 'Kết nối KiotViet'}
             </button>
             <button onClick={onRefresh} className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:border-emerald-300 hover:text-emerald-700">
               Kiểm tra lại
@@ -941,7 +1249,106 @@ function KiotVietConnectScreen({
           </div>
 
           <p className="mt-3 text-center text-[11px] text-slate-500">
-            Sau 2-4 giây, hệ thống sẽ chuyển sang giao diện quản lý.
+            Sau khi KiotViet sẵn sàng, hệ thống sẽ chuyển sang bước GHN.
+          </p>
+        </section>
+      </div>
+      {toast && <Toast message={toast} />}
+    </div>
+  );
+}
+
+function GHNConnectScreen({
+  status,
+  backendReady,
+  onPrimary,
+  onBack,
+  onRefresh,
+  toast
+}: {
+  status: GHNStatus,
+  backendReady: boolean,
+  onPrimary: () => void,
+  onBack: () => void,
+  onRefresh: () => void,
+  toast: string | null
+}) {
+  const connected = status.status === 'connected';
+
+  return (
+    <div className="min-h-screen bg-[#edf3f8] px-4 py-6 text-slate-950">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-md flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-xl">
+        <header className="mb-5 flex items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
+              Bước 2/2
+            </div>
+            <h1 className="mt-3 text-2xl font-bold leading-tight">Authorize Agentify + GHN</h1>
+            <p className="mt-1 text-sm text-slate-500">Kết nối giao vận để tự động gửi thông tin đơn hàng.</p>
+          </div>
+          <button onClick={onBack} className="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            Quay lại
+          </button>
+        </header>
+
+        <section className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="mb-3 flex items-center gap-3">
+              <img src="/agentify-logo.png" alt="Agentify" className="h-12 w-12 rounded-xl border border-slate-200 bg-white" />
+              <div className="text-2xl font-bold text-slate-700">•</div>
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-sky-600 text-lg font-bold text-white">
+                <Truck className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm text-slate-500">Đang gửi đến</div>
+                <div className="font-semibold text-slate-900">Giao Hàng Nhanh</div>
+              </div>
+            </div>
+            <h2 className="text-lg font-bold text-slate-900">Xác thực tài khoản giao vận</h2>
+            <p className="mt-2 text-sm text-slate-600">Môi trường: <span className="font-semibold uppercase">{status.env || 'sandbox'}</span></p>
+            <p className="text-sm text-slate-600">Shop ID: <span className="font-semibold">{status.shop_id || 'chưa nhận diện'}</span></p>
+          </div>
+
+          <h3 className="text-sm font-semibold text-slate-900">Agentify sẽ dùng GHN để</h3>
+          <ul className="mt-3 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+            <li>• Tạo vận đơn sau khi khách xác nhận đơn.</li>
+            <li>• Gửi tên, số điện thoại, địa chỉ và danh sách hàng cho GHN.</li>
+            <li>• Theo dõi trạng thái vận chuyển để trả lời khách.</li>
+          </ul>
+
+          <div className="mt-4 space-y-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Backend</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${backendReady ? 'bg-emerald-50 text-emerald-700' : 'bg-coral-50 text-coral-700'}`}>
+                {backendReady ? 'Đang chạy' : 'Chưa kết nối'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>GHN</span>
+              <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                {connected ? 'Đã cấu hình' : 'Chưa cấu hình'}
+              </span>
+            </div>
+            <div className="text-slate-600">
+              Kho gửi: <span className="font-semibold text-slate-900">{status.from_name || 'Lumi Beauty'}</span>
+              {status.from_address ? <span> · {status.from_address}</span> : null}
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            <button
+              onClick={onPrimary}
+              className="rounded-lg bg-sky-600 px-4 py-3 text-sm font-semibold text-white hover:bg-sky-700"
+            >
+              {connected ? 'Authorize GHN' : 'Kết nối GHN'}
+            </button>
+            <button onClick={onRefresh} className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:border-sky-300 hover:text-sky-700">
+              Kiểm tra lại
+            </button>
+          </div>
+
+          <p className="mt-3 text-center text-[11px] text-slate-500">
+            Sau bước này, chủ shop sẽ vào dashboard quản lý Agentify.
           </p>
         </section>
       </div>
@@ -953,7 +1360,7 @@ function KiotVietConnectScreen({
 
 
 
-function OverviewScreen({ onNavigate, kiotStatus, productCount, lastDemoResult }: { onNavigate: (screen: Screen) => void, kiotStatus: KiotVietStatus, productCount: number, lastDemoResult: DemoChatResponse | null }) {
+function OverviewScreen({ onNavigate, kiotStatus, ghnStatus, productCount, lastDemoResult }: { onNavigate: (screen: Screen) => void, kiotStatus: KiotVietStatus, ghnStatus: GHNStatus, productCount: number, lastDemoResult: DemoChatResponse | null }) {
   return (
     <div className="p-8">
       <div className="mb-6">
@@ -1009,11 +1416,8 @@ function OverviewScreen({ onNavigate, kiotStatus, productCount, lastDemoResult }
         <div className="bg-white rounded-xl border border-slate-200 p-6">
           <h3 className="text-lg font-semibold text-slate-900 mb-4">Hệ thống đã kết nối</h3>
           <div className="grid grid-cols-2 gap-3">
-            <SystemCard name="Zalo OA" connected />
-            <SystemCard name="Facebook" connected />
-            <SystemCard name="Lịch Google" connected />
             <SystemCard name={`KiotViet (${productCount} SP)`} connected={kiotStatus.status === 'connected'} />
-            <SystemCard name="Pancake" connected={false} />
+            <SystemCard name={`GHN ${ghnStatus.env ? `(${ghnStatus.env})` : ''}`} connected={ghnStatus.status === 'connected'} />
           </div>
         </div>
       </div>
@@ -1458,19 +1862,15 @@ function WorkflowsScreen({ workflows, setWorkflows, onOpenModal, onNotify }: { w
   );
 }
 
-function IntegrationsScreen({ onOpenModal, onNotify, kiotStatus, productCount, onRefresh }: { onOpenModal: (modal: Modal) => void, onNotify: (message: string) => void, kiotStatus: KiotVietStatus, productCount: number, onRefresh: () => void }) {
+function IntegrationsScreen({ onOpenModal, onNotify, kiotStatus, ghnStatus, productCount, onRefresh, authToken }: { onOpenModal: (modal: Modal) => void, onNotify: (message: string) => void, kiotStatus: KiotVietStatus, ghnStatus: GHNStatus, productCount: number, onRefresh: () => void, authToken: string | null }) {
   const integrations = [
-    { name: 'Zalo OA', status: 'connected', icon: '💬', lastSync: '2 phút trước', messages: 248 },
-    { name: 'Tin nhắn Facebook', status: 'connected', icon: '📘', lastSync: '5 phút trước', messages: 124 },
-    { name: 'Lịch Google', status: 'connected', icon: '📅', lastSync: '1 phút trước', events: 38 },
     { name: 'KiotViet', status: kiotStatus.status === 'connected' ? 'connected' : 'disconnected', icon: '🏪', lastSync: kiotStatus.last_sync_at ? 'Vừa đồng bộ' : 'Chưa đồng bộ', products: productCount },
-    { name: 'Pancake', status: 'disconnected', icon: '🥞', lastSync: null, contacts: 0 },
-    { name: 'Sapo', status: 'disconnected', icon: '🛍️', lastSync: null, orders: 0 }
+    { name: 'GHN', status: ghnStatus.status === 'connected' ? 'connected' : 'disconnected', icon: '🚚', lastSync: ghnStatus.status === 'connected' ? `${ghnStatus.env} · ${ghnStatus.shop_id || 'đã cấu hình'}` : 'Chưa cấu hình' },
   ];
 
   const syncKiotViet = async () => {
     try {
-      await apiRequest('/api/integrations/kiotviet/sync-products', { method: 'POST' });
+      await apiRequest('/api/integrations/kiotviet/sync-products', { method: 'POST' }, authToken);
       await onRefresh();
       onNotify('Đã đồng bộ sản phẩm KiotViet từ backend');
     } catch (error) {
@@ -1483,7 +1883,7 @@ function IntegrationsScreen({ onOpenModal, onNotify, kiotStatus, productCount, o
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-3xl font-bold text-slate-900 mb-2">Kết nối hệ thống</h2>
-          <p className="text-slate-600">Quản lý kết nối với các nền tảng và công cụ</p>
+          <p className="text-slate-600">MVP hiện dùng KiotViet để quản lý hàng hóa và GHN để gửi vận đơn.</p>
         </div>
         <button
           onClick={() => onOpenModal('connect-system')}
@@ -1521,10 +1921,13 @@ function IntegrationsScreen({ onOpenModal, onNotify, kiotStatus, productCount, o
                   {integration.name === 'KiotViet' && (
                     <div className="mt-1 font-semibold text-slate-900">{productCount} sản phẩm trong cache</div>
                   )}
+                  {integration.name === 'GHN' && (
+                    <div className="mt-1 font-semibold text-slate-900">{ghnStatus.from_name || 'Kho gửi'} · {ghnStatus.from_phone || 'đã cấu hình'}</div>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => integration.name === 'KiotViet' ? syncKiotViet() : onNotify(`Đã đồng bộ ${integration.name}`)}
+                    onClick={() => integration.name === 'KiotViet' ? syncKiotViet() : onRefresh()}
                     className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
                   >
                     <RefreshCw className="w-4 h-4" />
@@ -1554,14 +1957,14 @@ function IntegrationsScreen({ onOpenModal, onNotify, kiotStatus, productCount, o
   );
 }
 
-function ShippingScreen({ onNotify }: { onNotify: (message: string) => void }) {
+function ShippingScreen({ onNotify, authToken }: { onNotify: (message: string) => void, authToken: string | null }) {
   const [shipments, setShipments] = useState<ShipmentItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadShipments = async () => {
     setLoading(true);
     try {
-      const rows = await apiRequest<ShipmentItem[]>('/api/shipments');
+      const rows = await apiRequest<ShipmentItem[]>('/api/shipments', undefined, authToken);
       setShipments(rows);
     } catch (error) {
       onNotify(error instanceof Error ? error.message : 'Không tải được danh sách vận đơn GHN');
@@ -1576,7 +1979,7 @@ function ShippingScreen({ onNotify }: { onNotify: (message: string) => void }) {
 
   const refreshShipment = async (shipment: ShipmentItem) => {
     try {
-      const updated = await apiRequest<ShipmentItem>(`/api/shipments/${shipment.id}/refresh`, { method: 'POST' });
+      const updated = await apiRequest<ShipmentItem>(`/api/shipments/${shipment.id}/refresh`, { method: 'POST' }, authToken);
       setShipments((current) => current.map((item) => item.id === updated.id ? updated : item));
       onNotify(`Đã cập nhật vận đơn ${updated.provider_order_code || updated.id} từ GHN`);
     } catch (error) {

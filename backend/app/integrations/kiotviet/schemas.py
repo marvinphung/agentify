@@ -22,6 +22,20 @@ class KiotVietConnectFromEnvResponse(BaseModel):
     sample_product_count: int
 
 
+class KiotVietPreviewResponse(BaseModel):
+    status: str
+    retailer: str
+    detected_shop_name: str
+    sample_product_count: int
+
+
+class KiotVietAuthorizeResponse(BaseModel):
+    status: str
+    retailer: str
+    sample_product_count: int
+    synced_product_count: int
+
+
 class KiotVietStatusResponse(BaseModel):
     status: str
     retailer: str | None = None

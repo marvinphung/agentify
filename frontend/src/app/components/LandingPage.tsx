@@ -100,7 +100,7 @@ function NavBar({
             onClick={onEnterDemo}
             className="landing-btn landing-btn--primary landing-btn--sm"
           >
-            Mở demo shop
+            Dùng cho shop
           </button>
         </div>
 
@@ -144,7 +144,7 @@ function NavBar({
               }}
               className="landing-btn landing-btn--primary"
             >
-              Mở demo shop
+              Dùng cho shop
             </button>
           </div>
         </div>
@@ -185,14 +185,14 @@ function HeroSection({
               onClick={onEnterDemo}
               className="landing-btn landing-btn--primary"
             >
-              Mở demo shop
+              Dùng cho shop
               <ArrowRight size={18} />
             </button>
             <button
               onClick={onEnterChat}
               className="landing-btn landing-btn--secondary"
             >
-              Chat như khách hàng
+              Chat thử
               <MessageSquare size={18} />
             </button>
           </div>
@@ -477,7 +477,7 @@ function DemoPreviewSection({ onEnterDemo }: { onEnterDemo: () => void }) {
             onClick={onEnterDemo}
             className="landing-btn landing-btn--primary"
           >
-            Xem demo vận hành
+            Dùng cho shop
             <ArrowRight size={18} />
           </button>
         </div>
@@ -713,14 +713,14 @@ function FinalCTASection({
             onClick={onEnterDemo}
             className="landing-btn landing-btn--secondary"
           >
-            Mở demo shop
+            Dùng cho shop
             <ArrowRight size={18} />
           </button>
           <button
             onClick={onEnterChat}
             className="landing-btn landing-btn--glass"
           >
-            Chat như khách hàng
+            Chat thử
             <MessageSquare size={18} />
           </button>
         </div>

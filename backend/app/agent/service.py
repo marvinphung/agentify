@@ -1349,9 +1349,9 @@ def _order_reply(product_result: ToolResult, quantity: int, order: Order | None,
     if shipping_result and shipping_result.status == "success":
         ghn_code = shipping_result.data.get("order_code")
         eta = shipping_result.data.get("expected_delivery_time")
-        shipping_line = f"Em cũng đã gửi thông tin đơn sang GHN. Mã vận đơn của chị là {ghn_code}."
+        shipping_line = f"Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển. Em cũng đã gửi thông tin đơn sang GHN. Mã vận đơn của chị là {ghn_code}."
         if eta:
-            shipping_line += f" Dự kiến giao: {eta}."
+            shipping_line += f" GHN đang trả ETA hệ thống: {eta}."
         shipping_line += " Chị có thể nhắn \"kiểm tra đơn\" để em cập nhật trạng thái giao hàng."
     elif shipping_result and shipping_result.status == "skipped":
         shipping_line = "Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển. Phần tạo vận đơn GHN sẽ chạy tự động khi shop cấu hình đủ GHN_TOKEN, GHN_SHOP_ID và mã địa chỉ."
