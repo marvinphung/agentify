@@ -865,12 +865,12 @@ def _sunscreen_intro_reply(recommendation_result: ToolResult | None = None) -> s
         ]
         product_lines = "\n".join(lines)
         return (
-            "Dạ được ạ. Với kem chống nắng, em đang có vài lựa chọn dễ tư vấn theo loại da:\n\n"
+            "Dạ được ạ. Với Kem chống nắng, em đang có vài lựa chọn dễ tư vấn theo loại da:\n\n"
             f"{product_lines}\n\n"
             "Da mình thiên dầu, khô, hỗn hợp hay nhạy cảm để em chọn sát hơn cho chị?"
         )
     return (
-        "Dạ được ạ. Với kem chống nắng, em đang có vài lựa chọn dễ tư vấn theo loại da:\n\n"
+        "Dạ được ạ. Với Kem chống nắng, em đang có vài lựa chọn dễ tư vấn theo loại da:\n\n"
         "SunCare Aqua SPF50+: hợp da dầu/da hỗn hợp, chất gel mỏng nhẹ, giá 320.000đ.\n"
         "Derma Shield Sensitive SPF50: hợp da nhạy cảm hoặc da đang treatment, không cồn, không hương liệu, giá 390.000đ.\n"
         "Moist UV Cream SPF50+: hợp da khô, có thêm dưỡng ẩm, giá 350.000đ.\n\n"
@@ -1387,7 +1387,7 @@ def _confirmation_reply(product_result: ToolResult, plan: AgentPlan) -> str:
     price = int(product_result.data.get("base_price") or 0)
     total = price * quantity
     return (
-        "Em đọc lại đơn giúp chị trước khi tạo hóa đơn nhé:\n"
+        "Em đọc lại đơn giúp chị xác nhận trước khi tạo hóa đơn nhé:\n"
         f"Sản phẩm: {quantity} {name}\n"
         f"Tổng tạm tính: {_format_vnd(total)}đ\n"
         f"Người nhận: {plan.slots.customer_name}\n"
