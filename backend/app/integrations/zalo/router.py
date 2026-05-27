@@ -158,11 +158,11 @@ def _shipment_from_actions(actions: list) -> ShipmentSummary | None:
 
 def _quick_replies_from_actions(actions: list, *, has_invoice: bool) -> list[str]:
     if has_invoice:
-        return ["Kiểm tra trạng thái đơn", "Mua thêm sản phẩm", "Gặp nhân viên"]
+        return ["Kiểm tra trạng thái đơn", "Mua thêm", "Gặp nhân viên"]
     if any(action.type == "order_confirmation_pending" for action in actions):
-        return ["Đúng rồi", "Sửa số điện thoại", "Đổi địa chỉ"]
+        return ["Đúng rồi", "Sửa SĐT", "Đổi địa chỉ"]
     if any(action.type == "product_recommendation" and action.status == "success" for action in actions):
-        return ["Da dầu", "Da mụn", "Da khô", "Da nhạy cảm"]
+        return ["Da dầu", "Da khô", "Da nhạy cảm", "Dưới 350k"]
     if any(action.type == "order_support" for action in actions):
         return ["Gửi mã đơn", "Gửi SĐT mua hàng", "Gặp nhân viên"]
     for action in actions:
