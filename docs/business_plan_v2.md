@@ -1,522 +1,467 @@
 # Agentify Business Plan V2
 
+**Tagline:** Let AI run your sales operations.  
+**Website:** [agentify.io.vn](https://agentify.io.vn)  
+**Contact:** minhvu2592005@gmail.com
+
+---
+
 ## 1. Executive Summary
 
-**Agentify** là lớp **AI execution layer** dành cho doanh nghiệp social commerce tại Việt Nam.
+**Agentify** là **AI Execution Layer** cho SME Việt Nam đang bán hàng qua Zalo, Facebook và các kênh social commerce.
 
-Khác với Pancake, KiotViet hay Sapo là những hệ thống để **con người vận hành**, Agentify là một **AI sales operator** có thể:
+Các SME đã có sẵn công cụ như Pancake, KiotViet, Sapo hoặc phần mềm quản lý lịch hẹn. Những hệ thống này giúp doanh nghiệp gom inbox, quản lý đơn hàng, tồn kho và lịch hẹn. Tuy nhiên, phần bán hàng vẫn cần con người đọc từng đoạn chat, hiểu nhu cầu, check tồn, báo giá, tạo đơn, gửi thông tin vận chuyển và follow-up.
 
-- đọc hội thoại từ Zalo OA / Facebook / inbox platform
-- hiểu ý định khách hàng bằng tiếng Việt
-- gọi API hoặc thao tác trên stack sẵn có
-- tự hoàn thành các workflow như tư vấn, chốt đơn, theo dõi đơn, đặt lịch, nhắc lịch, follow-up lead
-- mở rộng dần từ các workflow hẹp tới vận hành tự động diện rộng
+Agentify không thay thế các hệ thống đó. Agentify nằm phía trên stack hiện tại, hiểu ngữ cảnh tiếng Việt và tự thực thi các workflow đủ điều kiện tự động hóa.
 
-**Định vị mới:** Agentify không thay thế Pancake, KiotViet, Sapo. Agentify biến stack đó thành một hệ thống bán hàng có thể tiến dần tới **100% autonomous operations**, bắt đầu từ những workflow hẹp có thể tự động hóa trọn vẹn.
+**Positioning:**
+
+> Your current stack manages operations. Agentify gets the work done.
+
+**Định vị sản phẩm:** AI sales execution layer giúp SME Việt Nam tự động trả lời khách hàng và hoàn tất các workflow bán hàng/CSKH trên Zalo, Facebook và các hệ thống vận hành hiện có.
 
 ---
 
 ## 2. Vấn đề cốt lõi
 
-SME Việt Nam bán hàng qua Zalo và Facebook thường đã có một số công cụ như:
+Các SME đã có sẵn công cụ, nhưng khâu bán hàng vẫn thủ công.
 
-- Pancake để gom inbox và phân chia hội thoại
-- KiotViet hoặc Sapo để quản lý đơn, kho, khách hàng
-- CRM, Google Sheet, ZNS hoặc các công cụ nhắn tin khác để follow-up
+### 2.1. Thực tế vận hành
 
-Vấn đề là:
+| Hệ thống hiện có | Vai trò | Khoảng trống còn lại |
+|---|---|---|
+| Pancake | Omnichannel inbox | Nhân viên vẫn phải đọc chat và quyết định từng bước |
+| KiotViet / Sapo | Quản lý đơn, đặt lịch, sản phẩm, tồn kho | Nhân viên vẫn phải check tồn, báo giá, tạo đơn, follow-up |
+| Chatbot rule-based | Trả lời theo kịch bản | Không thể hoàn tất workflow thật |
 
-- dữ liệu đã có nhưng công việc vẫn do người làm thủ công
-- nhân viên vẫn phải đọc từng đoạn chat và tự quyết định phải làm gì tiếp theo
-- các bước check tồn, báo giá, tạo đơn, nhắc thanh toán, nhắc lịch vẫn bị đứt gãy giữa nhiều hệ thống
-- chatbot rule-based chỉ trả lời được câu hỏi đơn giản, không đủ để hoàn tất workflow
+### 2.2. Pain points
 
-**Nỗi đau thật không phải là thiếu phần mềm quản lý.**
+- Shop có thể nhận khoảng **300-500 messages/day**.
+- **30-50% after-hours hoặc peak-hour inquiries bị missed**.
+- Chi phí nhân sự có thể ở mức **8-18M VND/tháng cho mỗi CS agent**.
+- Nhân viên vẫn phải đọc chat và quyết định từng bước.
+- Check tồn, báo giá, tạo đơn và follow-up vẫn bị làm tay.
+- Chatbot rule-based không thể hoàn tất workflow end-to-end.
 
-**Nỗi đau thật là chưa có ai làm việc thay con người trên các phần mềm đó.**
+**Kết luận:** Nỗi đau không phải là thiếu phần mềm quản lý. Nỗi đau là doanh nghiệp chưa có một lớp AI có thể tự làm việc trên các phần mềm đó.
 
 ---
 
 ## 3. Insight chiến lược
 
-Pancake, KiotViet, Sapo đang giải quyết tốt bài toán:
+Pancake, KiotViet và Sapo đang làm tốt vai trò:
 
-- quản lý tập trung
-- đồng bộ dữ liệu
-- vận hành đa kênh
-- báo cáo
+- quản lý inbox
+- quản lý đơn hàng
+- quản lý sản phẩm, tồn kho, khách hàng
+- tổ chức dữ liệu vận hành
 
-Nhưng họ vẫn chủ yếu là:
-
-- system of record
-- system of operations
-- nơi nhân viên vào thao tác
+Nhưng các hệ thống đó vẫn chủ yếu là nơi để con người vào thao tác.
 
 Agentify chọn một lớp giá trị khác:
 
-- autonomous execution
-- AI quyết định bước tiếp theo trong workflow
-- AI tự thực hiện thao tác qua API hoặc tool
-- tối ưu theo outcome như chốt đơn, book lịch, giữ lead, giảm bỏ sót
+- hiểu hội thoại tiếng Việt theo ngữ cảnh
+- quyết định bước tiếp theo trong workflow
+- gọi dữ liệu từ POS/CRM/hệ thống đặt lịch
+- thực hiện hành động như check tồn, báo giá, tạo đơn, gửi thông tin vận chuyển
+- chỉ chuyển cho người khi case chưa đủ điều kiện tự động hóa
 
 **Tóm tắt:**
 
-- Pancake/KiotViet/Sapo giúp đội ngũ quản lý công việc
-- Agentify giúp công việc được hoàn thành tự động
+- Stack hiện tại giúp doanh nghiệp quản lý vận hành.
+- Agentify giúp doanh nghiệp hoàn tất công việc.
 
 ---
 
-## 3.1. Vision vs Product Reality
+## 4. Product Vision & Reality
 
-### Vision
+### 4.1. Vision
 
-Tầm nhìn dài hạn của Agentify là:
+Agentify hướng tới trở thành lớp AI vận hành cho SME Việt Nam: một hệ thống có thể kết nối vào stack hiện tại, hiểu yêu cầu bằng tiếng Việt, tự chạy workflow và giúp đội bán hàng/CSKH tập trung vào các trường hợp thật sự cần con người.
 
-**100% autonomous commerce operations**
+### 4.2. Product reality giai đoạn đầu
 
-Tức là doanh nghiệp có thể để phần lớn vận hành bán hàng và chăm sóc khách hàng được xử lý tự động từ đầu đến cuối mà không cần con người can thiệp vào từng bước.
-
-### Product reality
-
-Trong giai đoạn đầu, không nên hứa:
-
-- 100% automation cho mọi tình huống ngay từ đầu
-- AI có thể xử lý an toàn mọi trường hợp ngoại lệ
+Agentify không nên claim rằng AI có thể xử lý mọi tình huống ngay từ ngày đầu.
 
 Chiến lược đúng là:
 
-- **100% automation cho các workflow đủ điều kiện**
-- mở rộng dần coverage theo từng workflow, từng ngành, từng mức độ rủi ro
+- bắt đầu với các workflow có ranh giới rõ
+- tự động hóa 100% các workflow đủ điều kiện
+- mở rộng dần sang workflow phức tạp hơn
+- dùng guardrail hoặc human approval cho case rủi ro cao
 
-Nói cách khác:
+Thông điệp nên dùng:
 
-- không claim "auto hết mọi case"
-- claim "auto trọn vẹn những case đã được kiểm soát tốt"
-
----
-
-## 4. Positioning mới
-
-### 4.1. Positioning statement
-
-Agentify là **AI sales execution layer** cho doanh nghiệp social commerce Việt Nam, giúp tự động hoàn thành các workflow bán hàng và chăm sóc khách hàng trên Zalo/Facebook bằng cách làm việc trực tiếp trên các hệ thống hiện có như Pancake, KiotViet, Sapo, CRM và lịch hẹn.
-
-### 4.2. Điều Agentify không làm
-
-Agentify không cố trở thành:
-
-- một unified inbox mới
-- một POS mới
-- một CRM mới
-- một dashboard reporting mới cho mọi use case
-
-### 4.3. Điều Agentify tập trung làm rất tốt
-
-Agentify tập trung vào:
-
-- hiểu hội thoại tiếng Việt theo ngữ cảnh thật
-- quyết định hành động tiếp theo
-- tự thực thi workflow nhiều bước
-- xử lý trọn vẹn các workflow đủ điều kiện mà không cần người
-- có guardrail cho các case chưa nên full-auto
-- đo ROI theo outcome thay vì chỉ đo số ticket hoặc số reply
+> Agentify tự động hoàn toàn các workflow đã đủ điều kiện, sau đó mở rộng dần coverage theo từng ngành và từng playbook.
 
 ---
 
-## 5. Khách hàng mục tiêu
+## 5. Sản phẩm
 
-### 5.1. Beachhead market
+### 5.1. Agentify làm gì?
 
-Các shop hoặc doanh nghiệp:
+Agentify là hệ thống AI tự động trả lời và xử lý workflow bán hàng cho SME.
 
-- bán qua Zalo OA và Facebook là chính
-- đã dùng KiotViet hoặc Sapo
-- có thể dùng thêm Pancake hoặc nền tảng inbox khác
-- có 2-20 nhân sự
-- có 1-5 người chuyên sale/inbox/chốt đơn
-- đang nhận 100-300+ tin nhắn mỗi ngày
+Các năng lực chính:
 
-### 5.2. Vertical ưu tiên
+- hiểu ngữ cảnh tiếng Việt trong hội thoại khách hàng
+- trả lời khách hàng 24/7
+- tự động quy trình đầu-cuối phục vụ order, vận chuyển và CSKH
+- cho phép tạo workflow từ ngôn ngữ tự nhiên
+- kết nối với KiotViet, Sapo, Pancake, Zalo OA và Facebook Page
 
-Thay vì làm cho mọi SME ngay từ đầu, Agentify nên đi theo chiến lược **vertical-first**.
+### 5.2. Luồng hoạt động mẫu
 
-Các vertical phù hợp nhất:
+```text
+Khách hàng nhắn tin qua Zalo OA / Facebook Page
+        ↓
+Agentify hiểu intent và ngữ cảnh tiếng Việt
+        ↓
+Agentify gọi dữ liệu từ POS / CRM / hệ thống quản lý lịch hẹn
+        ↓
+Agentify thực hiện hành động: check tồn, báo giá, tạo đơn, gửi thông tin vận chuyển
+        ↓
+Khách hàng nhận phản hồi tự nhiên, đúng ngữ cảnh, không cần chờ nhân viên
+```
 
-1. **Beauty / spa / clinic**
-2. **Fashion social sellers**
-3. **Education / training center**
+### 5.3. Giao diện sản phẩm
 
-### 5.3. Khuyến nghị
+Agentify có giao diện cho shop tại **agentify.io.vn**, giúp chủ shop và đội vận hành quản lý cấu hình, workflow và các kênh kết nối.
 
-Nếu cần chọn một wedge rõ nhất để pitch và triển khai sớm, nên ưu tiên:
+Sản phẩm cũng hỗ trợ trải nghiệm hội thoại khi khách hàng nhắn tin, cho phép AI phản hồi tự nhiên theo ngữ cảnh và xử lý các tác vụ như tư vấn, kiểm tra tồn kho, tạo đơn hoặc hỗ trợ sau bán.
 
-**Beauty / spa / clinic**
+### 5.4. Workflow ưu tiên
 
-Lý do:
+Giai đoạn đầu nên ưu tiên các workflow có thể tự động hóa rõ ràng:
 
-- workflow nhiều bước và có giá trị cao
-- cần book lịch, nhắc lịch, xác nhận lịch, follow-up
-- có no-show và lost lead nên ROI của automation rất rõ
-- chat không chỉ là FAQ mà còn là tư vấn và chuyển đổi
+- trả lời câu hỏi về sản phẩm/dịch vụ
+- kiểm tra tồn kho
+- báo giá
+- tạo đơn hàng từ hội thoại đủ thông tin
+- gửi thông tin cho đơn vị vận chuyển
+- chăm sóc khách hàng sau bán ở mức cơ bản
+- đặt lịch hoặc xác nhận lịch cho nhóm spa/salon
 
 ---
 
-## 6. Sản phẩm
+## 6. Thị trường
 
-### 6.1. Sản phẩm cốt lõi
+### 6.1. Thị trường mục tiêu
 
-Agentify là một AI operator chạy trên stack hiện có của khách hàng.
+Thị trường mục tiêu của Agentify là nhóm SME Việt Nam đang bán hàng qua social platforms và đã có digital stack đủ phù hợp để gắn thêm AI layer.
 
-Các thành phần chính:
+### 6.2. Dữ liệu chính
 
-- **Conversation understanding layer**: hiểu intent, context, trạng thái khách hàng
-- **Workflow orchestration layer**: quyết định bước tiếp theo
-- **Tool/API execution layer**: gọi API, tạo đơn, kiểm tra tồn, đặt lịch, gửi tin xác nhận
-- **Guardrail and approval layer**: kiểm soát các case rủi ro cao
-- **Memory & evaluation layer**: lưu ngữ cảnh và đo hiệu quả
+- Việt Nam có khoảng **900.000 SME**.
+- **68% SME dùng social platforms như Facebook/Zalo** làm kênh bán chính hoặc phụ.
+- Khoảng **150.000-200.000 doanh nghiệp** đã có digital stack phù hợp để gắn AI layer.
+- **SAM ước tính khoảng 280M USD/year** cho nhóm khách có stack phù hợp.
 
-### 6.2. Nguyên tắc rollout automation
+Nguồn tham khảo theo slide: `vietnamplus.vn`, `vietnam-briefing.com`.
 
-Agentify không nên được thiết kế theo hướng:
+### 6.3. Beachhead market
 
-- tự động hóa một phần nhỏ của mọi thứ
+Agentify chọn chiến lược **Start Narrow, Win Deep**.
 
-Agentify nên được thiết kế theo hướng:
+Beachhead ban đầu:
 
-- **chọn workflow hẹp**
-- **làm workflow đó tự động hoàn toàn**
-- sau đó mới mở rộng thêm coverage
+- shop mỹ phẩm
+- spa
+- salon
 
-### 6.3. Các workflow nên ưu tiên
+Điều kiện phù hợp:
 
-#### Giai đoạn 1: workflow có thể full-auto sớm
+- đang bán hàng qua Zalo/Facebook
+- đã dùng POS/CRM như KiotViet, Sapo hoặc phần mềm quản lý lịch hẹn
+- có volume inbox đủ lớn
+- cần tư vấn, follow-up và phản hồi nhanh để giữ lead
 
-- trả lời hỏi sản phẩm / giá / tình trạng còn hàng
+### 6.4. Vì sao bắt đầu với beauty / spa / salon?
+
+- Nhu cầu tư vấn cao.
+- Luồng vận hành nhiều bước.
+- Giá trị mỗi khách hàng cao.
+- Lead dễ mất nếu phản hồi chậm.
+- Dễ chứng minh ROI qua thời gian phản hồi, tỷ lệ chốt đơn và số workflow chạy end-to-end không cần người.
+
+---
+
+## 7. Target User
+
+### 7.1. Primary buyer
+
+**Owner / operations manager** của shop bán hàng online.
+
+Họ quan tâm đến:
+
+- giảm chi phí nhân sự
+- không bỏ sót lead
+- tăng tốc độ phản hồi
+- tăng tỷ lệ chốt đơn
+- chứng minh ROI bằng số liệu vận hành
+
+### 7.2. Primary user
+
+**Sales / CS / booking team**.
+
+Họ dùng Agentify để giảm các tác vụ lặp lại:
+
+- trả lời câu hỏi thường gặp
+- tư vấn sản phẩm hoặc dịch vụ
+- kiểm tra tồn kho hoặc lịch trống
+- tạo đơn hoặc tạo lịch hẹn
+- follow-up khách hàng
 - kiểm tra trạng thái đơn hàng
-- tạo đơn hàng từ hội thoại chuẩn
-- đặt lịch tư vấn / lịch dịch vụ với rule rõ ràng
-- nhắc lịch và xác nhận lại
+- xử lý yêu cầu sau bán
 
-#### Giai đoạn 2: mở rộng sang workflow conversion
+### 7.3. Pain và willingness to pay
 
-- follow-up lead chưa chốt
-- upsell / cross-sell theo playbook
-- re-engagement khách hàng cũ
-- nhắc thanh toán / nhắc hoàn tất đặt cọc
-
-#### Giai đoạn 3: mở rộng coverage vận hành
-
-- đánh giá chất lượng lead
-- tự động route lead cho team phù hợp
-- tự động tạo task cho nhân viên
-- tối ưu conversion theo từng kịch bản ngành
+- **Pain:** inbox nhiều, follow-up chậm, bỏ sót lead, workflow lặp lại.
+- **Willingness to pay:** có nếu Agentify giúp giảm nhân sự hoặc tăng conversion rõ ràng.
 
 ---
 
-## 7. Tại sao khách hàng vẫn mua thêm Agentify
+## 8. Business Model
 
-Đây là câu hỏi quan trọng nhất của mô hình.
+Agentify dùng mô hình **SaaS subscription + setup fee + usage-based AI messages**.
 
-Khách hàng sẽ **không mua** Agentify nếu Agentify chỉ lặp lại:
+### 8.1. Starter - 399k VND/tháng
 
-- gom chat
-- quản lý đơn
-- quản lý kho
-- báo cáo
+Dùng thử 1 tháng.
 
-Khách hàng sẽ **mua** Agentify nếu Agentify tạo ra giá trị mới:
+- 1 Zalo OA hoặc 1 Facebook Page.
+- 1.000 câu trả lời AI/tháng.
+- Tích hợp đơn giản.
+- Tự động check tồn kho và trả lời khách theo thông tin sản phẩm.
 
-- biến quy trình lặp lại thành quy trình tự chạy end-to-end
-- phản hồi 24/7 mà vẫn kết nối được với dữ liệu thật
-- chốt đơn nhanh hơn
-- giảm lead bị bỏ quên
-- nhắc lịch và follow-up đều hơn nhân viên
-- giữ chất lượng vận hành ngay cả khi số lượng inbox tăng mạnh
+### 8.2. Grow - 699k VND/tháng
 
-### 7.1. Value proposition
+- 1 Zalo OA + 1 Facebook Page.
+- 5.000 câu trả lời AI/tháng.
+- Tích hợp nâng cao.
+- Tự động check tồn kho và trả lời khách theo thông tin sản phẩm.
+- Tự động tạo đơn hàng.
+- Xuất hóa đơn điện tử.
+- Gửi thông tin cho bên đơn vị vận chuyển.
+- Hỗ trợ chăm sóc khách hàng sau bán đơn giản.
 
-**Keep your current stack. Add an AI worker on top.**
+### 8.3. Pro - 1,299k VND/tháng
 
-Thông điệp bán hàng:
+- Tích hợp thêm thông tin chat từ các sàn TMĐT.
+- 12.000 câu trả lời AI/tháng.
+- Tích hợp đầy đủ các tính năng.
+- Hỗ trợ tự động 100% các quy trình đủ điều kiện tự động hóa.
+- AI trả lời nâng cao theo từng ngành hàng.
+- Chăm sóc khách hàng sau bán.
+- Kiểm tra lộ trình đơn hàng.
+- Hỗ trợ khi có yêu cầu trả hàng, hoàn tiền.
 
-- không cần bỏ Pancake
-- không cần bỏ KiotViet hay Sapo
-- không cần đào tạo lại cả team
-- chỉ cần kết nối và bật workflow AI
+### 8.4. Setup fee và usage-based AI messages
 
-### 7.2. ROI proposition
+Ngoài subscription, Agentify có thể thu thêm:
 
-Ví dụ một câu pitch thực dụng:
+- phí setup ban đầu cho khách cần tích hợp hoặc cấu hình workflow
+- phí vượt quota câu trả lời AI
+- phí tích hợp nâng cao nếu khách có hệ thống riêng
 
-> Anh vẫn dùng Pancake/KiotViet như hiện tại. Agentify sẽ tự động hoàn toàn các workflow đã đủ điều kiện như check tồn, báo giá, tạo đơn chuẩn, nhắc lịch hay follow-up theo playbook. Mục tiêu không phải thay hệ thống của anh, mà là biến các quy trình lặp lại thành những quy trình tự chạy end-to-end.
+Đơn vị giá trị nên bán không chỉ là "AI messages", mà là workflow được hoàn tất:
 
----
-
-## 8. Lợi thế cạnh tranh
-
-### 8.1. Điều không phải là moat
-
-Những thứ sau **không đủ** để làm moat:
-
-- chỉ có AI
-- chỉ có integration
-- chỉ có chatbot
-- chỉ rẻ hơn
-
-### 8.2. Moat thực tế của Agentify
-
-Agentify cần xây lợi thế ở 4 lớp:
-
-#### 1. Vertical depth
-
-Làm rất sâu cho một ngành thay vì làm hời hợt cho mọi ngành.
-
-Ví dụ với spa/clinic:
-
-- lead qualification
-- tư vấn gói dịch vụ
-- book lịch
-- nhắc lịch
-- xử lý no-show
-- kéo khách quay lại
-
-#### 2. Agent quality
-
-Không chỉ trả lời được, mà phải:
-
-- ra quyết định tốt
-- ít hallucination
-- chốt được outcome
-- chạy ổn định trong workflow thật
-
-#### 3. Vendor-neutral layer
-
-Agentify có thể chạy trên nhiều stack:
-
-- Pancake + KiotViet
-- Sapo + Zalo OA
-- inbox platform khác + CRM khác
-
-Đây là lợi thế trước các nền tảng chỉ tối ưu cho hệ sinh thái riêng của họ.
-
-#### 4. Speed of deployment
-
-Startup nhỏ có thể:
-
-- pilot nhanh
-- customize nhanh
-- sửa workflow nhanh
-- close feedback loop nhanh hơn doanh nghiệp lớn
-
----
-
-## 9. Cạnh tranh với Pancake, KiotViet, Sapo
-
-### 9.1. Quan điểm chiến lược
-
-Không nên pitch Agentify như đối thủ trực diện thay thế toàn bộ các nền tảng đó.
-
-Nên pitch như sau:
-
-- Pancake/KiotViet/Sapo là hạ tầng vận hành
-- Agentify là lớp AI tự thực thi công việc trên hạ tầng đó
-
-### 9.2. Nếu các ông lớn cũng xây agent layer thì sao
-
-Nếu họ build agent layer, Agentify vẫn còn cửa nếu đi nhanh hơn và sâu hơn ở một ngách.
-
-Điều kiện để còn cạnh tranh được:
-
-- tập trung vào một vertical cụ thể
-- tối ưu một workflow có ROI rất rõ và có thể full-auto thật
-- chứng minh chất lượng agent tốt hơn giải pháp built-in
-- triển khai nhanh và linh hoạt hơn
-
-### 9.3. Nguyên tắc sống còn
-
-Agentify không cần thắng họ trên toàn bộ mặt trận.
-
-Agentify chỉ cần thắng ở mệnh đề sau:
-
-**Trong workflow X của ngành Y, Agentify tạo ROI tốt hơn bất kỳ giải pháp nào khác.**
-
----
-
-## 10. Go-to-market
-
-### 10.1. Chiến lược vào thị trường
-
-Không mở rộng ngang quá sớm.
-
-Bắt đầu với:
-
-- 1 vertical
-- 1 workflow wedge
-- 1 KPI chính
-
-### 10.2. Wedge đề xuất
-
-**Vertical:** beauty / spa / clinic
-
-**Workflow wedge:** lead-to-booking automation
-
-Bao gồm:
-
-- trả lời câu hỏi đầu vào
-- qualify nhu cầu theo rule rõ
-- gợi ý gói phù hợp theo playbook
-- book lịch
-- gửi xác nhận
-- nhắc lịch
-- follow-up khách chưa đến
-
-Mục tiêu của wedge này là:
-
-**100% automation cho một workflow booking có ranh giới rõ ràng**, không phải 50-70% automation mơ hồ cho toàn bộ vận hành.
-
-### 10.3. KPI chính
-
-- booking rate
-- show-up rate
-- response time
-- lead recovery rate
-- số workflow AI xử lý hoàn toàn
-
-### 10.4. Kênh bán
-
-- direct sales tới các shop/clinic đã dùng stack sẵn có
-- agency hoặc đơn vị triển khai digital marketing
-- partner integration channel nếu có thể kết nối chính thức
-- content demo thực chiến: trước và sau khi bật agent
-
----
-
-## 11. Business model
-
-### 11.1. Cách thu tiền
-
-Không chỉ thu phí như một phần mềm quản lý seat-based.
-
-Nên có cấu trúc kết hợp:
-
-- phí nền tảng hàng tháng
-- phí theo usage
-- phí theo workflow / outcome nếu phù hợp
-
-### 11.2. Pricing gợi ý
-
-#### Starter
-
-- 1 workflow chính
-- 1-2 integration
-- giới hạn số workflow hoặc số action mỗi tháng
-
-#### Growth
-
-- nhiều workflow hơn
-- multi-channel
-- reporting theo outcome
-- guardrail và approval flow
-
-#### Scale / Agency
-
-- nhiều account
-- white-label hoặc multi-tenant
-- SLA và support tốt hơn
-
-### 11.3. Đơn vị giá trị nên bán
-
-Thay vì chỉ bán "phần mềm AI", có thể bán theo:
-
-- workflow completed
-- booking completed
 - order completed
+- booking completed
 - lead followed-up
-
-Điểm quan trọng là khách hàng phải nhìn thấy chi phí này gắn với ROI rõ ràng của những quy trình được tự động hóa trọn vẹn.
+- customer support workflow completed
 
 ---
 
-## 12. Lộ trình 12 tháng
+## 9. Competitive Landscape
 
-### Giai đoạn 1: 0-3 tháng
+### 9.1. Ma trận cạnh tranh
 
-- chọn 1 vertical
-- build 1 workflow wedge có thể full-auto
-- connect tối thiểu với 1-2 hệ thống chính
-- pilot với 5-10 khách hàng đầu tiên
+| Product | Understands customer intent | Auto order + shipping + CSKH | Integration ready | Vietnam SME fit |
+|---|---:|---:|---:|---:|
+| **Agentify** | Có | Rất mạnh | Rất mạnh | Có |
+| Pancake | Một phần | Rất mạnh | Một phần | Có |
+| Sapo OmniAI | Có | Có | Sapo-native | Có |
+| Haravan AI Chat / HaraSocial | Có | Có | Một phần | Có |
+| AhaChat / Hana / Fchat | Một phần | Một phần | Hạn chế | Một phần |
 
-### Giai đoạn 2: 3-6 tháng
+### 9.2. Khác biệt của Agentify
+
+- Không chỉ là chatbot trả lời câu hỏi.
+- Tập trung vào workflow thực thi đầu-cuối.
+- Tối ưu cho tiếng Việt và cách SME Việt Nam vận hành qua Zalo/Facebook.
+- Tích hợp nhanh với các hệ thống phổ biến như KiotViet và Zalo.
+- Bắt đầu từ một ngách hẹp để triển khai sâu thay vì bán rộng ngay từ đầu.
+
+### 9.3. Quan điểm cạnh tranh với platform lớn
+
+Agentify không nên pitch như sản phẩm thay thế Pancake, KiotViet hoặc Sapo.
+
+Thông điệp đúng hơn:
+
+- Pancake/KiotViet/Sapo là hạ tầng vận hành.
+- Agentify là lớp AI tự thực thi công việc trên hạ tầng đó.
+
+Nếu các platform lớn cũng xây AI layer, Agentify vẫn có cơ hội nếu đi nhanh hơn và sâu hơn trong một ngách cụ thể, ví dụ beauty/spa/salon với workflow tư vấn, booking, follow-up và chăm sóc sau bán.
+
+---
+
+## 10. Lợi thế cạnh tranh
+
+### 10.1. Tập trung vào ngách hẹp
+
+Agentify bắt đầu với nhóm **beauty / spa**, nơi nhu cầu tư vấn cao, quy trình nhiều bước và ROI có thể đo được rõ ràng.
+
+### 10.2. Tích hợp nhanh chóng
+
+Agentify ưu tiên tích hợp nhanh với các nền tảng SME Việt Nam đang dùng:
+
+- KiotViet
+- Zalo
+- Zalo OA
+- Facebook Page
+- Pancake
+- Sapo
+
+### 10.3. Phù hợp vận hành SME Việt Nam
+
+Agentify được thiết kế cho cách đội bán hàng, CSKH và booking team tại Việt Nam vận hành qua Zalo/Facebook, không phải cho enterprise quốc tế hoặc workflow tiếng Anh.
+
+### 10.4. Workflow-first
+
+Agentify không chỉ tối ưu số lượng câu trả lời. Sản phẩm nên đo hiệu quả theo outcome:
+
+- lead có được phản hồi nhanh hơn không
+- khách có được tư vấn đúng hơn không
+- đơn hàng có được tạo tự động không
+- lịch hẹn có được xác nhận và nhắc lại không
+- workflow có hoàn tất end-to-end không cần người không
+
+---
+
+## 11. Go-To-Market
+
+### 11.1. Phase 1: 0-3 months
+
+Tập trung vào **beauty / spa SMEs** có bán hàng online và đã sử dụng Zalo OA hoặc Pancake + KiotViet.
+
+### 11.2. Channels
+
+- Cộng đồng Facebook của chủ shop, spa, salon và kinh doanh online.
+- Video demo ngắn cho thấy AI tự xử lý workflow từ tin nhắn đến đơn hàng hoặc lịch hẹn.
+- Outreach trực tiếp đến các shop có volume inbox cao.
+
+### 11.3. Mục tiêu
+
+- Pilot **5-10 khách đầu tiên**.
+- Chứng minh KPI như:
+  - thời gian phản hồi
+  - tỷ lệ khách hàng chốt đơn
+  - một workflow chạy end-to-end không cần người
+
+### 11.4. Demo nên tập trung vào gì?
+
+Demo nên trực quan và ngắn:
+
+1. Khách nhắn tin qua Zalo/Facebook.
+2. Agentify hiểu nhu cầu bằng tiếng Việt.
+3. Agentify check tồn hoặc lịch trống.
+4. Agentify báo giá/tư vấn/tạo đơn hoặc đặt lịch.
+5. Khách nhận xác nhận mà không cần nhân viên can thiệp.
+
+---
+
+## 12. KPI cần chứng minh trong pilot
+
+Các KPI nên theo sát nỗi đau trong slide:
+
+- response time giảm bao nhiêu
+- số after-hours hoặc peak-hour inquiries được xử lý
+- tỷ lệ lead được follow-up
+- tỷ lệ khách hàng chốt đơn hoặc đặt lịch
+- số workflow được xử lý end-to-end không cần người
+- số giờ nhân sự tiết kiệm được mỗi tuần
+- số case phải handoff cho người
+
+Mục tiêu của pilot không phải chứng minh AI có thể làm mọi thứ, mà chứng minh một số workflow cụ thể có thể chạy ổn định, đo được ROI và mở rộng được.
+
+---
+
+## 13. Lộ trình sản phẩm
+
+### 13.1. Giai đoạn 1: 0-3 tháng
+
+- tập trung beauty / spa / salon
+- kết nối Zalo OA hoặc Facebook Page
+- tích hợp KiotViet hoặc stack tương đương
+- triển khai workflow check tồn, tư vấn, tạo đơn hoặc đặt lịch
+- pilot 5-10 khách đầu tiên
+
+### 13.2. Giai đoạn 2: 3-6 tháng
 
 - chuẩn hóa playbook triển khai
 - cải thiện agent quality
-- thêm guardrail, approval flow và dashboard ROI
-- có 20-30 khách hàng đầu tiên
+- thêm dashboard theo dõi KPI
+- mở rộng workflow chăm sóc sau bán
+- hoàn thiện pricing Starter/Grow/Pro
 
-### Giai đoạn 3: 6-12 tháng
+### 13.3. Giai đoạn 3: 6-12 tháng
 
-- mở rộng trong cùng vertical
-- thêm 1 workflow phụ có thể full-auto
-- xây partner channel
-- bắt đầu có dataset đủ lớn để tối ưu conversion và evaluation
+- mở rộng thêm nguồn chat từ sàn TMĐT cho gói Pro
+- tăng số workflow đủ điều kiện tự động hóa 100%
+- phát triển integration với vận chuyển, hóa đơn và tracking
+- xây playbook theo từng ngành hàng
 
 ---
 
-## 13. Rủi ro chính
+## 14. Rủi ro chính
 
-### Rủi ro 1: bị copy bởi platform lớn
+### Rủi ro 1: Khách hàng nghĩ đây chỉ là chatbot
 
 Giảm thiểu:
 
-- vertical-first
-- speed
-- workflow depth
-- partner/channel riêng
+- demo workflow end-to-end thay vì chỉ demo trả lời tin nhắn
+- định vị là AI execution layer
+- đo outcome như đơn hàng, lịch hẹn, workflow hoàn tất
 
-### Rủi ro 2: integration không ổn định
+### Rủi ro 2: Integration không ổn định
 
 Giảm thiểu:
 
 - ưu tiên nền tảng có API rõ ràng
-- abstraction layer
-- hạn chế phụ thuộc vào một vendor duy nhất
+- xây abstraction layer cho POS/CRM/inbox
+- bắt đầu với số integration ít nhưng sâu
 
-### Rủi ro 3: AI không đủ tốt
-
-Giảm thiểu:
-
-- giới hạn scope ban đầu
-- đánh giá theo workflow cụ thể
-- dùng guardrail cho case rủi ro cao
-- chỉ claim full-auto ở nơi đủ điều kiện
-- liên tục tuning theo dữ liệu thật
-
-### Rủi ro 4: khách không sẵn sàng mua thêm
+### Rủi ro 3: AI trả lời sai hoặc xử lý case vượt scope
 
 Giảm thiểu:
 
-- không bán platform replacement
-- bán workflow full-auto có ROI rõ ràng
-- demo outcome thực tế
-- triển khai nhanh, ít thay đổi hệ thống hiện tại
+- giới hạn workflow đủ điều kiện tự động hóa
+- dùng guardrail và handoff cho case rủi ro cao
+- logging và evaluation liên tục theo dữ liệu thật
+
+### Rủi ro 4: Khách không sẵn sàng trả thêm
+
+Giảm thiểu:
+
+- bán ROI thay vì bán "AI"
+- chứng minh giảm missed lead, giảm thời gian phản hồi và giảm việc lặp lại
+- gói Starter có mức giá thấp để giảm rào cản thử nghiệm
 
 ---
 
-## 14. Kết luận chiến lược
+## 15. Kết luận chiến lược
 
-Business plan mới của Agentify không nên đi theo hướng:
+Agentify không nên đi theo hướng phần mềm quản lý bán hàng đa kênh tổng quát hoặc đối đầu trực diện với Pancake, KiotViet, Sapo.
 
-- phần mềm quản lý bán hàng đa kênh tổng quát
-- đối đầu trực diện với Pancake, KiotViet, Sapo
-
-Business plan nên đi theo hướng:
+Agentify nên đi theo hướng:
 
 - AI execution layer
-- vendor-neutral
 - vertical-first
 - workflow-first
-- outcome-driven
+- tích hợp nhanh với stack SME Việt Nam
+- đo hiệu quả bằng outcome thật
 
 **Tuyên bố ngắn gọn nhất của Agentify V2:**
 
-> Agentify không thay thế hệ thống hiện tại của doanh nghiệp. Agentify thêm một nhân viên AI có thể tự hoàn thành những workflow đủ điều kiện trên các hệ thống đó, và mở rộng dần tới 100% autonomous operations.
+> Agentify không thay thế hệ thống hiện tại của doanh nghiệp. Agentify thêm một lớp AI có thể tự hoàn thành những workflow đủ điều kiện trên các hệ thống đó.

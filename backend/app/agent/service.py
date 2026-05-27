@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import json
 import re
 
-import httpx
 from sqlalchemy import desc
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -12,8 +10,9 @@ from sqlalchemy.orm import Session
 from app.agent.conversation_state import resolve_pending_order_intent
 from app.agent.invoice import build_invoice_payload
 from app.agent.llm import plan_with_llm
+from app.agent.llm_client import LLMClientError, generate_llm_json, llm_available
 from app.agent.schemas import AgentPlan, AgentUiEvent, InvoicePayload, ToolResult
-from app.agent.tools import check_stock, create_draft_order, list_agent_tools, search_product_recommendations, search_products
+from app.agent.tools import check_stock, create_draft_order, create_shipping_order, list_agent_tools, search_product_recommendations, search_products, track_shipping_order
 from app.config import get_settings
 from app.models import AgentAction, Conversation, Message, Order, ProductCache
 from app.shared.workspace import DEFAULT_WORKSPACE_ID
@@ -22,7 +21,8 @@ from app.shared.text import normalize_text
 
 CONFIRM_WORDS = ("dung roi", "xac nhan", "chot", "chot don", "dong y", "ok", "oki", "okay")
 REJECT_WORDS = ("sai", "khong dung", "chua dung", "doi lai", "sua lai", "can sua", "nham")
-ORDER_SUPPORT_WORDS = ("hoan tien", "doi hang", "tra hang", "huy don", "don tre", "giao cham", "chua nhan", "kiem tra don", "trang thai don")
+TRACKING_WORDS = ("kiem tra don", "trang thai don", "don toi dau", "ma van don", "van don", "bao gio giao", "don giao den dau", "tracking")
+ORDER_SUPPORT_WORDS = ("hoan tien", "doi hang", "tra hang", "huy don", "don tre", "giao cham", "chua nhan", *TRACKING_WORDS)
 APPOINTMENT_WORDS = ("soi da", "dat lich", "lich tu van", "tu van mun", "hen", "clinic")
 IRRITATION_WORDS = ("kich ung", "do mat", "rat", "ngua", "man do", "sung mat", "sung moi", "kho tho", "phong rop")
 FULFILLMENT_WORDS = ("thieu hang", "sai san pham", "giao sai", "nhan co 1", "nhan co mot", "dat 2 mon", "khieu nai")
@@ -112,6 +112,26 @@ async def process_customer_message(
 
     if _is_order_support_message(message):
         _supersede_pending_confirmations(db, conversation.id)
+        if _is_tracking_message(message):
+            phone = customer_phone or _extract_phone_from_text(message)
+            code = _extract_order_code(message)
+            order = _find_order_for_complaint(db, phone=phone, code=code) or _latest_order_for_customer(db, customer_phone) or _latest_order_for_conversation(db, conversation.id)
+            if not order:
+                reply = "Dạ chị gửi giúp em số điện thoại đặt hàng hoặc mã đơn để em kiểm tra trạng thái giao hàng trên GHN nhé."
+                actions.append(ToolResult(type="shipping_track", status="skipped", summary="Khách hỏi tracking nhưng chưa có SĐT/mã đơn."))
+                actions.append(ToolResult(type="reply", status="success", summary=reply))
+                _persist_actions(db, conversation.id, actions)
+                _persist_ai_message(db, conversation.id, reply)
+                return plan, reply, actions, None, None, ui_events
+            track_result = track_shipping_order(db, order=order)
+            actions.append(track_result)
+            reply = _tracking_reply(order, track_result)
+            actions.append(ToolResult(type="reply", status="success", summary=reply))
+            _persist_actions(db, conversation.id, actions)
+            _persist_ai_message(db, conversation.id, reply)
+            return plan, reply, actions, order, None, [
+                AgentUiEvent(type="shipping_tracking", status=track_result.status, title="Đã kiểm tra vận đơn GHN", detail=track_result.summary)
+            ]
         conversation.status = "needs_review"
         reply = _order_support_reply(db, conversation.id, customer_name, customer_phone)
         actions.append(ToolResult(type="order_support", status="success", summary="Nhận diện kịch bản sau mua/hoàn tiền/đổi trả/hủy đơn."))
@@ -1100,8 +1120,10 @@ def _handle_pending_confirmation(
     conversation.status = "order_created"
     order = db.get(Order, order.id) or order
     invoice = build_invoice_payload(order)
-    reply = _order_reply(product_result, plan.slots.quantity, order)
-    return reply, order, invoice, [
+    shipping_result = create_shipping_order(db, order=order)
+    actions.append(shipping_result)
+    reply = _order_reply(product_result, plan.slots.quantity, order, shipping_result)
+    ui_events = [
         AgentUiEvent(
             type="invoice_ready",
             status="success",
@@ -1109,6 +1131,25 @@ def _handle_pending_confirmation(
             detail=f"Đơn #{order.id} tổng {int(order.total):,}đ đã được tạo sau khi khách xác nhận."
         )
     ]
+    if shipping_result.status == "success":
+        ui_events.append(
+            AgentUiEvent(
+                type="shipping_order_created",
+                status="success",
+                title=f"Đã gửi đơn sang GHN: {shipping_result.data.get('order_code')}",
+                detail=shipping_result.summary,
+            )
+        )
+    elif shipping_result.status == "skipped":
+        ui_events.append(
+            AgentUiEvent(
+                type="shipping_order_skipped",
+                status="info",
+                title="Chưa tạo vận đơn GHN",
+                detail=shipping_result.summary,
+            )
+        )
+    return reply, order, invoice, ui_events
 
 
 def _is_explicit_confirmation(normalized_message: str) -> bool:
@@ -1158,9 +1199,27 @@ def _is_order_support_message(message: str) -> bool:
     return any(word in normalized for word in ORDER_SUPPORT_WORDS)
 
 
+def _is_tracking_message(message: str) -> bool:
+    normalized = normalize_text(message)
+    return any(word in normalized for word in TRACKING_WORDS)
+
+
 def _is_appointment_message(message: str) -> bool:
     normalized = normalize_text(message)
     return any(word in normalized for word in APPOINTMENT_WORDS)
+
+
+def _tracking_reply(order: Order, track_result: ToolResult) -> str:
+    if track_result.status != "success":
+        return (
+            f"Dạ em đã tìm thấy đơn #{order.id}, nhưng hiện chưa cập nhật được mã vận đơn GHN cho đơn này. "
+            f"{track_result.summary} Shop sẽ kiểm tra lại và phản hồi chị sớm ạ."
+        )
+    code = track_result.data.get("order_code") or "chưa có mã"
+    status = track_result.data.get("status") or "đang xử lý"
+    eta = track_result.data.get("expected_delivery_time")
+    eta_line = f"\nDự kiến giao: {eta}" if eta else ""
+    return f"Dạ em kiểm tra trên GHN rồi ạ.\nMã vận đơn: {code}\nTrạng thái hiện tại: {status}{eta_line}"
 
 
 def _order_support_reply(db: Session, conversation_id: int, customer_name: str | None, customer_phone: str | None) -> str:
@@ -1191,9 +1250,17 @@ def _latest_order_for_customer(db: Session, customer_phone: str | None) -> Order
     )
 
 
+def _latest_order_for_conversation(db: Session, conversation_id: int) -> Order | None:
+    return db.scalar(
+        select(Order)
+        .where(Order.workspace_id == DEFAULT_WORKSPACE_ID, Order.conversation_id == conversation_id)
+        .order_by(desc(Order.created_at), desc(Order.id))
+    )
+
+
 async def _reply_with_general_llm(db: Session, conversation_id: int, message: str, customer_name: str | None, customer_phone: str | None) -> dict | None:
     settings = get_settings()
-    if not settings.llm_api_key:
+    if not llm_available(settings):
         return None
     products = list(
         db.scalars(
@@ -1212,46 +1279,26 @@ async def _reply_with_general_llm(db: Session, conversation_id: int, message: st
         )
     )
     history_rows.reverse()
-    payload = {
-        "model": settings.llm_model,
-        "messages": [
-            {"role": "system", "content": GENERAL_LLM_PROMPT},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {
-                        "message": message,
-                        "customer_name": customer_name,
-                        "customer_phone": customer_phone,
-                        "conversation_history": [
-                            {"role": "assistant" if row.sender == "ai" else "user", "content": row.content}
-                            for row in history_rows
-                        ],
-                        "available_products": [
-                            {"name": product.name, "price": float(product.base_price), "stock": product.stock}
-                            for product in products
-                        ],
-                        "tool_catalog": list_agent_tools(),
-                    },
-                    ensure_ascii=False,
-                ),
-            },
-        ],
-        "temperature": 0.2,
-        "response_format": {"type": "json_object"},
-    }
-    headers = {
-        "Authorization": f"Bearer {settings.llm_api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": settings.llm_http_referer,
-        "X-OpenRouter-Title": settings.llm_app_title,
-    }
     try:
-        async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
-            response = await client.post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", headers=headers, json=payload)
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"].get("content")
-        parsed = json.loads(content) if content else None
+        parsed = await generate_llm_json(
+            GENERAL_LLM_PROMPT,
+            {
+                "message": message,
+                "customer_name": customer_name,
+                "customer_phone": customer_phone,
+                "conversation_history": [
+                    {"role": "assistant" if row.sender == "ai" else "user", "content": row.content}
+                    for row in history_rows
+                ],
+                "available_products": [
+                    {"name": product.name, "price": float(product.base_price), "stock": product.stock}
+                    for product in products
+                ],
+                "tool_catalog": list_agent_tools(),
+            },
+            temperature=0.2,
+            settings=settings,
+        )
         if not isinstance(parsed, dict) or not parsed.get("reply"):
             return None
         return {
@@ -1259,7 +1306,7 @@ async def _reply_with_general_llm(db: Session, conversation_id: int, message: st
             "actions": [str(item) for item in parsed.get("actions", [])[:4] if item],
             "quick_replies": [str(item) for item in parsed.get("quick_replies", [])[:4] if item],
         }
-    except (httpx.HTTPError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+    except (LLMClientError, KeyError, TypeError, ValueError):
         return None
 
 
@@ -1294,13 +1341,23 @@ def _missing_info_reply(plan: AgentPlan, order_result: ToolResult) -> str:
     return f"Dạ em chưa thể tạo đơn. {order_result.summary}"
 
 
-def _order_reply(product_result: ToolResult, quantity: int, order: Order | None) -> str:
+def _order_reply(product_result: ToolResult, quantity: int, order: Order | None, shipping_result: ToolResult | None = None) -> str:
     name = product_result.data.get("name", "sản phẩm")
     order_code = f"#{order.id}" if order else ""
     total = int(order.total) if order else 0
+    shipping_line = "Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển."
+    if shipping_result and shipping_result.status == "success":
+        ghn_code = shipping_result.data.get("order_code")
+        eta = shipping_result.data.get("expected_delivery_time")
+        shipping_line = f"Em cũng đã gửi thông tin đơn sang GHN. Mã vận đơn của chị là {ghn_code}."
+        if eta:
+            shipping_line += f" Dự kiến giao: {eta}."
+        shipping_line += " Chị có thể nhắn \"kiểm tra đơn\" để em cập nhật trạng thái giao hàng."
+    elif shipping_result and shipping_result.status == "skipped":
+        shipping_line = "Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển. Phần tạo vận đơn GHN sẽ chạy tự động khi shop cấu hình đủ GHN_TOKEN, GHN_SHOP_ID và mã địa chỉ."
     return (
         f"Dạ em đã ghi nhận đơn hàng và xuất hóa đơn điện tử cho chị. Đơn {order_code}: {quantity} {name}, tổng {_format_vnd(total)}đ.\n"
-        "Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển. Cảm ơn chị đã tin tưởng shop ạ."
+        f"{shipping_line} Cảm ơn chị đã tin tưởng shop ạ."
     )
 
 

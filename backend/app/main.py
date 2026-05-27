@@ -13,6 +13,7 @@ from app.errors import AppError, app_error_handler
 from app.integrations.kiotviet.router import router as kiotviet_router
 from app.integrations.zalo.router import router as zalo_router
 from app.orders.router import router as orders_router
+from app.shipments.router import router as shipments_router
 from app.shared.workspace import ensure_default_workspace
 
 
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     app.include_router(zalo_router)
     app.include_router(chat_router)
     app.include_router(orders_router)
+    app.include_router(shipments_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:

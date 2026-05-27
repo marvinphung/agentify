@@ -1,8 +1,6 @@
-import json
-
-import httpx
 from pydantic import ValidationError
 
+from app.agent.llm_client import LLMClientError, generate_llm_json, llm_available
 from app.agent.parser import parse_message
 from app.agent.schemas import AgentPlan
 from app.agent.tools import list_agent_tools
@@ -37,44 +35,22 @@ Nếu thiếu số điện thoại hoặc địa chỉ khi đặt hàng, vẫn t
 async def plan_with_llm(message: str, *, customer_name: str | None, customer_phone: str | None) -> AgentPlan:
     settings = get_settings()
     fallback_plan = parse_message(message, customer_name=customer_name, customer_phone=customer_phone)
-    if not settings.llm_api_key:
+    if not llm_available(settings):
         return fallback_plan
 
-    payload = {
-        "model": settings.llm_model,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {
-                        "message": message,
-                        "customer_name": customer_name,
-                        "customer_phone": customer_phone,
-                        "tool_catalog": list_agent_tools(),
-                    },
-                    ensure_ascii=False,
-                ),
-            },
-        ],
-        "temperature": 0,
-        "response_format": {"type": "json_object"},
-    }
-    headers = {
-        "Authorization": f"Bearer {settings.llm_api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": settings.llm_http_referer,
-        "X-OpenRouter-Title": settings.llm_app_title,
-    }
-    url = f"{settings.llm_base_url.rstrip('/')}/chat/completions"
     try:
-        async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
-            response = await client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"].get("content")
-        if not content:
-            raise ValueError("LLM returned empty content")
-        plan = AgentPlan.model_validate_json(content)
+        parsed = await generate_llm_json(
+            SYSTEM_PROMPT,
+            {
+                "message": message,
+                "customer_name": customer_name,
+                "customer_phone": customer_phone,
+                "tool_catalog": list_agent_tools(),
+            },
+            temperature=0,
+            settings=settings,
+        )
+        plan = AgentPlan.model_validate(parsed)
         plan = _merge_missing_slots(plan, fallback_plan)
         if "create_draft_order" in plan.tool_plan:
             plan.intent = "buy_product"
@@ -83,7 +59,7 @@ async def plan_with_llm(message: str, *, customer_name: str | None, customer_pho
             plan.tool_plan = [tool for tool in plan.tool_plan if tool != "create_draft_order"] or ["search_products"]
         plan.source = "llm"
         return plan
-    except (httpx.HTTPError, KeyError, TypeError, ValueError, ValidationError, json.JSONDecodeError):
+    except (LLMClientError, ValidationError):
         return fallback_plan
 
 

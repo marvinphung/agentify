@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent.service import process_customer_message
-from app.chat.schemas import ActionResponse, ProductRecommendationResponse
+from app.chat.schemas import ActionResponse, ProductRecommendationResponse, ShipmentSummary
 from app.config import get_settings
 from app.integrations.zalo.schemas import (
     ZaloConnectStartResponse,
@@ -128,6 +128,7 @@ async def receive_zalo_message(payload: ZaloMessageRequest, db: Session = Depend
         conversation_id=conversation.id,
         reply=reply,
         invoice=invoice_payload.model_dump() if invoice_payload else None,
+        shipment=_shipment_from_actions(actions),
         actions=[ActionResponse(type=action.type, status=action.status, summary=action.summary) for action in actions],
         recommended_products=_recommendations_from_actions(actions),
         quick_replies=_quick_replies_from_actions(actions, has_invoice=invoice_payload is not None),
@@ -140,6 +141,19 @@ def _recommendations_from_actions(actions: list) -> list[ProductRecommendationRe
         if action.type == "product_recommendation" and action.status == "success":
             return [ProductRecommendationResponse(**product) for product in action.data.get("products", [])[:5]]
     return []
+
+
+def _shipment_from_actions(actions: list) -> ShipmentSummary | None:
+    for action in actions:
+        if action.type in {"shipping_order_create", "shipping_track"} and action.status == "success":
+            return ShipmentSummary(
+                provider=str(action.data.get("provider") or "ghn"),
+                order_code=action.data.get("order_code"),
+                status=str(action.data.get("status") or "created"),
+                fee=float(action.data.get("fee") or 0),
+                expected_delivery_time=action.data.get("expected_delivery_time"),
+            )
+    return None
 
 
 def _quick_replies_from_actions(actions: list, *, has_invoice: bool) -> list[str]:

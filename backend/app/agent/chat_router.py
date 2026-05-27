@@ -1,11 +1,10 @@
-import json
 from datetime import UTC, datetime
 
-import httpx
 from fastapi import APIRouter, Depends
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.agent.llm_client import LLMClientError, generate_llm_json, llm_available
 from app.agent.service import process_customer_message
 from app.agent.chat_schemas import AgentChatRequest, AgentChatResponse, AgentRecommendedProduct
 from app.config import get_settings
@@ -215,7 +214,7 @@ def _product_matches_focus(product: ProductCache, focus: str | None) -> bool:
 
 async def _call_llm(payload: AgentChatRequest, products: list[ProductCache], order_history: list[dict], conversation_history: list[dict], active_product_focus: str | None) -> dict | None:
     settings = get_settings()
-    if not settings.llm_api_key:
+    if not llm_available(settings):
         return None
     focused_products = [product for product in products if _product_matches_focus(product, active_product_focus)]
     context_products = focused_products or products
@@ -223,42 +222,22 @@ async def _call_llm(payload: AgentChatRequest, products: list[ProductCache], ord
         {"name": product.name, "price": float(product.base_price), "stock": product.stock}
         for product in context_products[:50]
     ]
-    request_body = {
-        "model": settings.llm_model,
-        "messages": [
-            {"role": "system", "content": INTENT_SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": json.dumps(
-                    {
-                        "customer_name": payload.customer_name,
-                        "customer_phone": payload.customer_phone,
-                        "message": payload.message,
-                        "conversation_history": conversation_history,
-                        "active_product_focus": active_product_focus,
-                        "available_products": product_context,
-                        "order_history": order_history,
-                    },
-                    ensure_ascii=False,
-                ),
-            },
-        ],
-        "temperature": 0.2,
-        "response_format": {"type": "json_object"},
-    }
-    headers = {
-        "Authorization": f"Bearer {settings.llm_api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": settings.llm_http_referer,
-        "X-OpenRouter-Title": settings.llm_app_title,
-    }
     try:
-        async with httpx.AsyncClient(timeout=settings.request_timeout_seconds) as client:
-            response = await client.post(f"{settings.llm_base_url.rstrip('/')}/chat/completions", headers=headers, json=request_body)
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"].get("content")
-        return json.loads(content) if content else None
-    except (httpx.HTTPError, KeyError, TypeError, json.JSONDecodeError):
+        return await generate_llm_json(
+            INTENT_SYSTEM_PROMPT,
+            {
+                "customer_name": payload.customer_name,
+                "customer_phone": payload.customer_phone,
+                "message": payload.message,
+                "conversation_history": conversation_history,
+                "active_product_focus": active_product_focus,
+                "available_products": product_context,
+                "order_history": order_history,
+            },
+            temperature=0.2,
+            settings=settings,
+        )
+    except (LLMClientError, KeyError, TypeError):
         return None
 
 

@@ -9,6 +9,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - ./.secrets/azure_private_api_key.enc:/app/.secrets/azure_private_api_key.enc:ro
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://agentify:agentify@131.153.239.187:5441/agentify}
       API_HOST: 0.0.0.0

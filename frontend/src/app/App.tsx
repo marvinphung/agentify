@@ -1,7 +1,8 @@
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
-import { LayoutDashboard, Mail, Calendar, AlertCircle, Workflow, Link2, BarChart3, Settings, Bell, ChevronRight, CheckCircle2, Clock, Zap, Users, MessageSquare, Plus, X, Facebook as FacebookIcon, RefreshCw, Download, Filter, Search, ArrowUpRight, Phone, MapPin, ArrowLeft, Send, Smile, Image, Camera, ArrowRight, Play, Pause, Edit, Trash2 } from 'lucide-react';
+import { LayoutDashboard, Mail, Calendar, AlertCircle, Workflow, Link2, BarChart3, Settings, Bell, ChevronRight, CheckCircle2, Clock, Zap, Users, MessageSquare, Plus, X, Facebook as FacebookIcon, RefreshCw, Download, Filter, Search, ArrowUpRight, Phone, MapPin, ArrowLeft, Send, Smile, Image, Camera, ArrowRight, Play, Pause, Edit, Trash2, Truck } from 'lucide-react';
+import LandingPage from './components/LandingPage';
 
-type Screen = 'overview' | 'inbox' | 'calendar' | 'approval' | 'workflows' | 'integrations' | 'reports' | 'settings';
+type Screen = 'overview' | 'inbox' | 'calendar' | 'approval' | 'workflows' | 'integrations' | 'shipping' | 'reports' | 'settings';
 type AppMode = 'landing' | 'connect-zalo' | 'loading-zalo' | 'connect-kiotviet' | 'loading-kiotviet' | 'manage';
 type Modal = 'create-workflow' | 'connect-system' | 'edit-conversation' | 'appointment-detail' | 'report-filter' | 'report-export' | 'edit-setting' | 'member-detail' | 'invite-member' | 'integration-settings' | null;
 type WorkflowItem = { id: number, name: string, status: 'active' | 'paused', triggers: number, conversions: number, description?: string };
@@ -12,6 +13,8 @@ type ChatAction = { type: string, status: string, summary: string };
 type ChatOrder = { id: number, kiotviet_order_code?: string | null, status: string, total: string, customer_name?: string | null, customer_phone?: string | null, shipping_address?: string | null, items?: { name: string, quantity: number, price: number }[] };
 type InvoiceLineItem = { name: string, quantity: number, unit_price: number, line_total: number };
 type InvoicePayload = { order_id: number, status: string, total: number, currency: string, customer_name?: string | null, customer_phone?: string | null, shipping_address?: string | null, items: InvoiceLineItem[], payment_method?: string | null };
+type ShipmentSummary = { provider: string, order_code?: string | null, status: string, fee: number, expected_delivery_time?: string | null };
+type ShipmentItem = { id: number, order_id: number, provider: string, provider_order_code?: string | null, client_order_code?: string | null, status: string, fee: number, expected_delivery_time?: string | null, created_at: string };
 type UiEvent = { type: string, status: string, title: string, detail: string };
 type DemoChatResponse = {
   conversation_id: number,
@@ -19,6 +22,7 @@ type DemoChatResponse = {
   actions: ChatAction[],
   order: ChatOrder | null,
   invoice: InvoicePayload | null,
+  shipment: ShipmentSummary | null,
   recommended_products: { id: number, name: string, price: number, stock: number, reason: string }[],
   quick_replies: string[],
   ui_events: UiEvent[],
@@ -246,7 +250,7 @@ export default function App() {
 
   if (appMode === 'landing') {
     return (
-      <div className="size-full bg-[#f7faf8] text-slate-950 overflow-auto">
+      <div className="size-full overflow-auto">
         <LandingPage
           onEnterDemo={startDemo}
           onEnterChat={() => navigateTo('/user_chat')}
@@ -304,6 +308,7 @@ export default function App() {
           <NavItem icon={AlertCircle} label="Việc cần duyệt" active={activeScreen === 'approval'} onClick={() => setActiveScreen('approval')} badge={11} />
           <NavItem icon={Workflow} label="Quy trình tự động" active={activeScreen === 'workflows'} onClick={() => setActiveScreen('workflows')} />
           <NavItem icon={Link2} label="Kết nối hệ thống" active={activeScreen === 'integrations'} onClick={() => setActiveScreen('integrations')} />
+          <NavItem icon={Truck} label="Vận chuyển" active={activeScreen === 'shipping'} onClick={() => setActiveScreen('shipping')} />
           <NavItem icon={BarChart3} label="Báo cáo" active={activeScreen === 'reports'} onClick={() => setActiveScreen('reports')} />
           <NavItem icon={Settings} label="Cài đặt" active={activeScreen === 'settings'} onClick={() => setActiveScreen('settings')} />
         </nav>
@@ -366,6 +371,7 @@ export default function App() {
           {activeScreen === 'approval' && <ApprovalScreen onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'workflows' && <WorkflowsScreen workflows={workflows} setWorkflows={setWorkflows} onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'integrations' && <IntegrationsScreen onOpenModal={setModal} onNotify={notify} kiotStatus={kiotStatus} productCount={productCount} onRefresh={refreshBackendState} />}
+          {activeScreen === 'shipping' && <ShippingScreen onNotify={notify} />}
           {activeScreen === 'reports' && <ReportsScreen onOpenModal={setModal} onNotify={notify} />}
           {activeScreen === 'settings' && <SettingsScreen onOpenModal={setModal} onNotify={notify} />}
         </main>
@@ -663,6 +669,7 @@ function UserChatScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actions, setActions] = useState<ChatAction[]>([]);
   const [invoice, setInvoice] = useState<InvoicePayload | null>(null);
+  const [shipment, setShipment] = useState<ShipmentSummary | null>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<AgentChatResponse['recommended_products']>([]);
   const [quickReplyOptions, setQuickReplyOptions] = useState<string[]>([]);
   const [uiEvents, setUiEvents] = useState<UiEvent[]>([]);
@@ -685,6 +692,7 @@ function UserChatScreen() {
     setLoading(true);
     setError(null);
     setInvoice(null);
+    setShipment(null);
     setInvoiceDeliveredOrderId(null);
     setUiEvents([]);
     setRecommendedProducts([]);
@@ -705,6 +713,7 @@ function UserChatScreen() {
       appendAi(result.reply);
       setActions(result.actions || []);
       setInvoice(result.invoice);
+      setShipment(result.shipment);
       setRecommendedProducts(result.recommended_products || []);
       setQuickReplyOptions(result.quick_replies || []);
       setUiEvents(result.ui_events || []);
@@ -712,6 +721,9 @@ function UserChatScreen() {
         const deliveryEvent = (result.ui_events || []).find((event) => event.type === 'zalo_invoice_send');
         appendAi(`Dạ em đã tạo hóa đơn tạm tính #${result.invoice.order_id} trong hội thoại.`);
         appendAi(deliveryEvent?.title || `Đã gửi hóa đơn tạm tính #${result.invoice.order_id} lại cho khách qua luồng Zalo OA.`);
+      }
+      if (result.shipment?.order_code) {
+        appendAi(`Thông tin đơn đã được gửi sang GHN. Mã vận đơn: ${result.shipment.order_code}.`);
       }
     } catch (err) {
       const fallback = err instanceof Error ? err.message : 'Không gửi được tin nhắn';
@@ -737,6 +749,7 @@ function UserChatScreen() {
               setConversationId(null);
               setMessages([{ sender: 'ai', text: 'Chào chị, Lumi Beauty có thể tư vấn sản phẩm, kiểm tra đơn hoặc hỗ trợ đặt hàng ngay trong Zalo.' }]);
               setInvoice(null);
+              setShipment(null);
               setRecommendedProducts([]);
               setQuickReplyOptions([]);
               setUiEvents([]);
@@ -762,6 +775,8 @@ function UserChatScreen() {
               shippingAddress={invoice.shipping_address || ''}
             />
           )}
+
+          {!!shipment && <ShipmentChatCard shipment={shipment} />}
 
           {!!recommendedProducts.length && (
             <LlmProductPanel
@@ -935,154 +950,8 @@ function KiotVietConnectScreen({
   );
 }
 
-function LandingPage({ onEnterDemo, onEnterChat }: { onEnterDemo: () => void, onEnterChat: () => void }) {
-  return (
-    <div className="min-h-screen bg-[#eef6f3] text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center gap-6 px-6 py-8">
-        <header className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-teal-600 text-white">
-                <Zap className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">Agentify</div>
-                <div className="text-sm text-slate-600">Chọn vai trò để bắt đầu demo</div>
-              </div>
-            </div>
-            <div className="rounded-full bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700">
-              Zalo OA + KiotViet
-            </div>
-          </div>
-        </header>
 
-        <section className="grid gap-4 md:grid-cols-2">
-          <button
-            onClick={onEnterDemo}
-            className="group rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md"
-          >
-            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-slate-950 text-white">
-              <LayoutDashboard className="h-6 w-6" />
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700">Chủ shop</p>
-            <h1 className="mt-2 text-2xl font-bold">Giao diện shop</h1>
-            <p className="mt-3 min-h-[48px] text-sm leading-6 text-slate-600">
-              Vào luồng authorize Agentify với Zalo, tiếp theo là KiotViet, rồi mở trang quản lý vận hành của shop.
-            </p>
-            <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-teal-700">
-              Mở flow kết nối
-              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-            </span>
-          </button>
 
-          <button
-            onClick={onEnterChat}
-            className="group rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md"
-          >
-            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-lg bg-blue-600 text-white">
-              <MessageSquare className="h-6 w-6" />
-            </div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">Khách hàng</p>
-            <h1 className="mt-2 text-2xl font-bold">Giao diện chat</h1>
-            <p className="mt-3 min-h-[48px] text-sm leading-6 text-slate-600">
-              Mở màn chat Zalo mobile, giả lập khách nhắn cho shop để tư vấn, đặt hàng, hoàn tiền hoặc xử lý khiếu nại.
-            </p>
-            <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-blue-700">
-              Chat với shop
-              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
-            </span>
-          </button>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function LandingMiniStat({ value, label }: { value: string, label: string }) {
-  return (
-    <div className="rounded-xl border border-white bg-white/75 p-4 shadow-sm">
-      <div className="text-2xl font-bold text-slate-950">{value}</div>
-      <div className="mt-1 text-sm leading-5 text-slate-600">{label}</div>
-    </div>
-  );
-}
-
-function HeroProductMockup({ onEnterDemo }: { onEnterDemo: () => void }) {
-  return (
-    <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-teal-900/12">
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold text-slate-500">Trung tâm điều phối</div>
-            <div className="text-xl font-bold text-slate-950">Lumi Clinic</div>
-          </div>
-          <div className="rounded-full bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-700">AI đang hoạt động</div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <MockMetric label="Hội thoại hôm nay" value="248" />
-          <MockMetric label="AI tự xử lý" value="176" accent />
-          <MockMetric label="Lịch hẹn đã tạo" value="38" accent />
-          <MockMetric label="Việc cần duyệt" value="11" warning />
-        </div>
-        <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="font-semibold text-slate-950">Luồng Zalo đang xử lý</div>
-            <MessageSquare className="h-4 w-4 text-teal-600" />
-          </div>
-          <div className="space-y-3 text-sm">
-            <div className="ml-auto max-w-[82%] rounded-2xl bg-blue-600 px-3 py-2 text-white">Da em bị mụn ẩn, bên mình có soi da không ạ?</div>
-            <div className="max-w-[88%] rounded-2xl bg-slate-100 px-3 py-2 text-slate-800">Dạ có ạ. Chiều thứ Sáu còn khung 14:30 và 16:00.</div>
-            <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-teal-800">
-              <div className="font-semibold">Kết quả</div>
-              <div>Đã đặt lịch tư vấn mụn lúc 14:30 thứ Sáu.</div>
-            </div>
-          </div>
-        </div>
-        <button onClick={onEnterDemo} className="mt-4 w-full rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800">
-          Bắt đầu kết nối
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function MockMetric({ label, value, accent, warning }: { label: string, value: string, accent?: boolean, warning?: boolean }) {
-  return (
-    <div className="rounded-xl bg-white p-4 shadow-sm">
-      <div className={`text-2xl font-bold ${warning ? 'text-coral-600' : accent ? 'text-teal-600' : 'text-slate-950'}`}>{value}</div>
-      <div className="mt-1 text-xs font-medium text-slate-500">{label}</div>
-    </div>
-  );
-}
-
-function ProblemCard({ value, label, desc }: { value: string, label: string, desc: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="text-4xl font-bold tracking-tight text-slate-950">{value}</div>
-      <div className="mt-2 font-semibold text-slate-800">{label}</div>
-      <p className="mt-3 text-sm leading-6 text-slate-600">{desc}</p>
-    </div>
-  );
-}
-
-function SolutionStep({ number, title, desc }: { number: string, title: string, desc: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6">
-      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-teal-600 text-sm font-bold text-white">{number}</div>
-      <h3 className="text-xl font-bold text-slate-950">{title}</h3>
-      <p className="mt-3 leading-7 text-slate-600">{desc}</p>
-    </div>
-  );
-}
-
-function MetricPill({ label, value }: { label: string, value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/7 p-5">
-      <div className="text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">{label}</div>
-      <div className="mt-2 text-xl font-bold">{value}</div>
-    </div>
-  );
-}
 
 function OverviewScreen({ onNavigate, kiotStatus, productCount, lastDemoResult }: { onNavigate: (screen: Screen) => void, kiotStatus: KiotVietStatus, productCount: number, lastDemoResult: DemoChatResponse | null }) {
   return (
@@ -1098,7 +967,7 @@ function OverviewScreen({ onNavigate, kiotStatus, productCount, lastDemoResult }
         <StatCard icon={Zap} label="AI tự xử lý" value={lastDemoResult?.actions.find((action) => action.type === 'intent_detected')?.summary.includes('(llm)') ? 'LLM' : 'Sẵn sàng'} color="teal" />
         <StatCard icon={Calendar} label="Lịch hẹn đã tạo" value="38" color="teal" />
         <StatCard icon={Users} label="Khách đã được theo dõi lại" value="22" />
-        <StatCard icon={Clock} label="Phản hồi trung bình" value="18s" />
+        <StatCard icon={Truck} label="Vận đơn GHN mới nhất" value={lastDemoResult?.shipment?.order_code || 'Chưa có'} color="teal" onClick={() => onNavigate('shipping')} />
         <StatCard icon={AlertCircle} label="Việc cần nhân viên duyệt" value="11" color="coral" onClick={() => onNavigate('approval')} />
       </div>
 
@@ -1111,7 +980,8 @@ function OverviewScreen({ onNavigate, kiotStatus, productCount, lastDemoResult }
           <FlowStep number={3} title="AI gọi tool tìm sản phẩm" description="Tìm trong cache sản phẩm đồng bộ từ KiotViet" />
           <FlowStep number={4} title="AI kiểm tra tồn kho" description="Xác nhận số lượng có thể bán" />
           <FlowStep number={5} title="AI tạo đơn nháp" description={lastDemoResult?.order ? `Đơn #${lastDemoResult.order.id}, tổng ${Number(lastDemoResult.order.total).toLocaleString('vi-VN')}đ` : 'Chờ tin nhắn demo đầu tiên'} />
-          <FlowStep number={6} title="AI trả lời khách" description={lastDemoResult?.reply || 'Kết quả sẽ hiện sau khi gửi tin nhắn ở Hộp thư'} />
+          <FlowStep number={6} title="AI gửi vận đơn sang GHN" description={lastDemoResult?.shipment ? `Mã vận đơn ${lastDemoResult.shipment.order_code}, trạng thái ${lastDemoResult.shipment.status}` : 'Tự động chạy sau khi hóa đơn được tạo và GHN đã cấu hình'} />
+          <FlowStep number={7} title="AI trả lời khách" description={lastDemoResult?.reply || 'Kết quả sẽ hiện sau khi gửi tin nhắn ở Hộp thư'} />
         </div>
         <div className="mt-4 flex items-center gap-2 text-teal-600">
           <span className="text-sm font-medium">Xem chi tiết</span>
@@ -1374,6 +1244,11 @@ function InboxScreen({ onNavigate, onOpenModal, onNotify, onDemoResult }: { onNa
           <p className="text-sm text-teal-700">
             {demoResult?.order ? `Đã tạo đơn nháp #${demoResult.order.id}, tổng ${Number(demoResult.order.total).toLocaleString('vi-VN')}đ.` : 'Chưa có đơn. Gửi tin nhắn demo để tạo kết quả thật.'}
           </p>
+          {demoResult?.shipment && (
+            <p className="mt-2 text-sm font-semibold text-teal-900">
+              GHN: {demoResult.shipment.order_code || 'chưa có mã'} · {demoResult.shipment.status}
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -1672,6 +1547,90 @@ function IntegrationsScreen({ onOpenModal, onNotify, kiotStatus, productCount, o
                 Kết nối ngay
               </button>
             )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ShippingScreen({ onNotify }: { onNotify: (message: string) => void }) {
+  const [shipments, setShipments] = useState<ShipmentItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadShipments = async () => {
+    setLoading(true);
+    try {
+      const rows = await apiRequest<ShipmentItem[]>('/api/shipments');
+      setShipments(rows);
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : 'Không tải được danh sách vận đơn GHN');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadShipments();
+  }, []);
+
+  const refreshShipment = async (shipment: ShipmentItem) => {
+    try {
+      const updated = await apiRequest<ShipmentItem>(`/api/shipments/${shipment.id}/refresh`, { method: 'POST' });
+      setShipments((current) => current.map((item) => item.id === updated.id ? updated : item));
+      onNotify(`Đã cập nhật vận đơn ${updated.provider_order_code || updated.id} từ GHN`);
+    } catch (error) {
+      onNotify(error instanceof Error ? error.message : 'Không cập nhật được vận đơn');
+    }
+  };
+
+  const activeCount = shipments.filter((item) => !['delivered', 'delivered_to_client', 'finish'].includes(item.status)).length;
+  const deliveredCount = shipments.length - activeCount;
+
+  return (
+    <div className="p-8">
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-900 mb-2">Vận chuyển GHN</h2>
+          <p className="text-slate-600">Theo dõi các vận đơn được Agentify tự động gửi sang GHN sandbox sau khi khách xác nhận đơn.</p>
+        </div>
+        <button onClick={loadShipments} className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700">
+          <RefreshCw className="h-4 w-4" />
+          Tải lại
+        </button>
+      </div>
+
+      <div className="mb-6 grid grid-cols-3 gap-4">
+        <StatCard icon={Truck} label="Tổng vận đơn GHN" value={String(shipments.length)} color="teal" />
+        <StatCard icon={Clock} label="Đang xử lý/giao" value={String(activeCount)} />
+        <StatCard icon={CheckCircle2} label="Đã hoàn tất" value={String(deliveredCount)} color="teal" />
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-600">
+          <div>Mã vận đơn</div>
+          <div>Mã đơn nội bộ</div>
+          <div>Trạng thái</div>
+          <div>Dự kiến giao</div>
+          <div></div>
+        </div>
+        {loading && <div className="p-5 text-sm text-slate-500">Đang tải vận đơn...</div>}
+        {!loading && shipments.length === 0 && (
+          <div className="p-5 text-sm text-slate-500">
+            Chưa có vận đơn. Khi backend có GHN_TOKEN/GHN_SHOP_ID và khách xác nhận đơn, vận đơn sẽ xuất hiện tại đây.
+          </div>
+        )}
+        {shipments.map((shipment) => (
+          <div key={shipment.id} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] items-center gap-4 border-b border-slate-100 px-4 py-4 text-sm last:border-b-0">
+            <div className="font-bold text-slate-950">{shipment.provider_order_code || 'Chưa có mã'}</div>
+            <div className="text-slate-700">{shipment.client_order_code || `Order #${shipment.order_id}`}</div>
+            <div>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{shipment.status}</span>
+            </div>
+            <div className="text-slate-600">{shipment.expected_delivery_time || 'Chưa có'}</div>
+            <button onClick={() => refreshShipment(shipment)} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700">
+              Cập nhật GHN
+            </button>
           </div>
         ))}
       </div>
@@ -2526,6 +2485,41 @@ function DigitalInvoiceCard({ invoice, customerName, customerPhone, shippingAddr
           <div className="mt-1 break-all">{qrText}</div>
           <div className="mt-2 text-[11px] text-slate-500">Quét QR để thanh toán hoặc đối soát trên hệ thống.</div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ShipmentChatCard({ shipment }: { shipment: ShipmentSummary }) {
+  return (
+    <div className="rounded-2xl border border-blue-200 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+            <Truck className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.16em] text-blue-700">GHN Sandbox</div>
+            <div className="text-lg font-bold text-slate-950">Thông tin vận chuyển</div>
+          </div>
+        </div>
+        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">{shipment.status}</span>
+      </div>
+      <div className="grid gap-2 text-sm text-slate-700">
+        <div className="flex items-center justify-between gap-3">
+          <span>Mã vận đơn</span>
+          <span className="font-bold text-slate-950">{shipment.order_code || 'Chưa có'}</span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span>Phí vận chuyển</span>
+          <span className="font-semibold">{Number(shipment.fee || 0).toLocaleString('vi-VN')}đ</span>
+        </div>
+        {shipment.expected_delivery_time && (
+          <div className="flex items-center justify-between gap-3">
+            <span>Dự kiến giao</span>
+            <span className="font-semibold">{shipment.expected_delivery_time}</span>
+          </div>
+        )}
       </div>
     </div>
   );

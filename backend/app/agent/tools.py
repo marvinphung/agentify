@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.agent.schemas import AgentPlan, ToolResult
 from app.config import get_settings
-from app.models import Order, ProductCache
+from app.integrations.ghn.service import create_ghn_shipment_for_order, latest_shipment_for_order, refresh_ghn_tracking
+from app.models import Order, ProductCache, Shipment
 from app.shared.text import normalize_text
 from app.shared.workspace import DEFAULT_WORKSPACE_ID
 
@@ -52,6 +53,18 @@ AGENT_TOOL_CATALOG = [
         "purpose": "Xuất hóa đơn điện tử từ đơn đã tạo.",
         "inputs": ["order_id"],
         "returns": "invoice payload with line items and payment QR data",
+    },
+    {
+        "name": "create_shipping_order",
+        "purpose": "Tự động gửi thông tin đơn hàng sang GHN sandbox sau khi khách xác nhận và hóa đơn đã tạo.",
+        "inputs": ["order_id"],
+        "returns": "GHN order_code, fee, expected_delivery_time, shipment status",
+    },
+    {
+        "name": "track_shipping_order",
+        "purpose": "Tra cứu trạng thái giao hàng từ GHN bằng mã vận đơn hoặc đơn hàng trong hệ thống.",
+        "inputs": ["order_id optional", "order_code optional"],
+        "returns": "shipment status and expected delivery time",
     },
     {
         "name": "book_appointment",
@@ -235,6 +248,49 @@ def create_support_ticket(db: Session, *, conversation_id: int, issue: str, reso
         status="success",
         summary="Đã tạo ticket hỗ trợ để nhân viên theo dõi.",
         data={"conversation_id": conversation_id, "order_id": order_id, "issue": issue, "resolution": resolution},
+    )
+
+
+def create_shipping_order(db: Session, *, order: Order) -> ToolResult:
+    shipment, summary = create_ghn_shipment_for_order(db, order)
+    if not shipment:
+        return ToolResult(type="shipping_order_create", status="skipped", summary=summary)
+    return ToolResult(
+        type="shipping_order_create",
+        status="success",
+        summary=summary,
+        data={
+            "provider": shipment.provider,
+            "order_id": order.id,
+            "order_code": shipment.provider_order_code,
+            "client_order_code": shipment.client_order_code,
+            "status": shipment.status,
+            "fee": float(shipment.fee or 0),
+            "expected_delivery_time": shipment.expected_delivery_time,
+        },
+    )
+
+
+def track_shipping_order(db: Session, *, order: Order | None = None, order_code: str | None = None) -> ToolResult:
+    shipment = None
+    if order:
+        shipment = latest_shipment_for_order(db, order.id)
+    if not shipment and order_code:
+        shipment = db.scalar(select(Shipment).where(Shipment.provider == "ghn", Shipment.provider_order_code == order_code))
+    if not shipment:
+        return ToolResult(type="shipping_track", status="failed", summary="Chưa tìm thấy vận đơn GHN cho đơn hàng này.")
+    shipment, summary = refresh_ghn_tracking(db, shipment)
+    return ToolResult(
+        type="shipping_track",
+        status="success" if shipment.provider_order_code else "failed",
+        summary=summary,
+        data={
+            "provider": shipment.provider,
+            "order_code": shipment.provider_order_code,
+            "status": shipment.status,
+            "fee": float(shipment.fee or 0),
+            "expected_delivery_time": shipment.expected_delivery_time,
+        },
     )
 
 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.chat.schemas import ActionResponse, ConversationResponse, DemoMessageRequest, DemoMessageResponse, MessageResponse, OrderSummary, ProductRecommendationResponse
+from app.chat.schemas import ActionResponse, ConversationResponse, DemoMessageRequest, DemoMessageResponse, MessageResponse, OrderSummary, ProductRecommendationResponse, ShipmentSummary
 from app.chat.service import list_actions, list_conversations, list_messages, receive_demo_message
 from app.database import get_db
 
@@ -21,6 +21,7 @@ async def demo_message(payload: DemoMessageRequest, db: Session = Depends(get_db
         actions=[ActionResponse(type=action.type, status=action.status, summary=action.summary) for action in actions],
         order=OrderSummary.model_validate(order, from_attributes=True) if order else None,
         invoice=invoice,
+        shipment=_shipment_from_actions(actions),
         recommended_products=_recommendations_from_actions(actions),
         quick_replies=_quick_replies_from_actions(actions, has_invoice=invoice is not None),
         ui_events=ui_event_payload,
@@ -32,6 +33,19 @@ def _recommendations_from_actions(actions: list) -> list[ProductRecommendationRe
         if action.type == "product_recommendation" and action.status == "success":
             return [ProductRecommendationResponse(**product) for product in action.data.get("products", [])[:5]]
     return []
+
+
+def _shipment_from_actions(actions: list) -> ShipmentSummary | None:
+    for action in actions:
+        if action.type in {"shipping_order_create", "shipping_track"} and action.status == "success":
+            return ShipmentSummary(
+                provider=str(action.data.get("provider") or "ghn"),
+                order_code=action.data.get("order_code"),
+                status=str(action.data.get("status") or "created"),
+                fee=float(action.data.get("fee") or 0),
+                expected_delivery_time=action.data.get("expected_delivery_time"),
+            )
+    return None
 
 
 def _quick_replies_from_actions(actions: list, *, has_invoice: bool) -> list[str]:

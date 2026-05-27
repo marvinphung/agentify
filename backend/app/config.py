@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     llm_http_referer: str = "http://localhost:5173"
     llm_app_title: str = "Agentify MVP"
+    azure_api_key: bool = False
+    azure_api_version: str = "2024-12-01-preview"
+    azure_model: str = "gpt-4o-mini"
+    azure_endpoint: str = ""
+    azure_public_api_key: str = ""
+    azure_private_api_key_path: str = ""
 
     request_timeout_seconds: Annotated[float, Field(gt=0)] = 20.0
     frontend_base_url: str = "http://localhost:5173"
@@ -43,6 +49,26 @@ class Settings(BaseSettings):
     zalo_callback_success_redirect: str = "http://localhost:5173/?zalo_connected=1"
     zalo_callback_error_redirect: str = "http://localhost:5173/?zalo_connected=0"
     zalo_site_verification: str = ""
+
+    # GHN sandbox/production shipping integration
+    ghn_env: str = "sandbox"
+    ghn_base_url: str = "https://dev-online-gateway.ghn.vn/shiip/public-api"
+    ghn_token: str = ""
+    ghn_shop_id: str = ""
+    ghn_from_name: str = "Lumi Beauty"
+    ghn_from_phone: str = ""
+    ghn_from_address: str = ""
+    ghn_from_district_id: int = 0
+    ghn_from_ward_code: str = ""
+    ghn_default_to_district_id: int = 0
+    ghn_default_to_ward_code: str = ""
+    ghn_default_weight_gram: int = 500
+    ghn_default_length_cm: int = 20
+    ghn_default_width_cm: int = 15
+    ghn_default_height_cm: int = 8
+    ghn_default_required_note: str = "CHOXEMHANGKHONGTHU"
+    ghn_payment_type_id: int = 2
+    ghn_service_type_id: int = 2
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -69,6 +95,14 @@ class Settings(BaseSettings):
         if self.backend_base_url:
             return f"{self.backend_base_url}/api/channels/zalo/connect/callback"
         return "http://localhost:8763/api/channels/zalo/connect/callback"
+
+    @property
+    def ghn_enabled(self) -> bool:
+        return bool(self.ghn_token and self.ghn_shop_id)
+
+    @property
+    def effective_llm_model(self) -> str:
+        return self.azure_model if self.azure_api_key else self.llm_model
 
 
 @lru_cache

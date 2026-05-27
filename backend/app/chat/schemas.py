@@ -39,12 +39,21 @@ class OrderSummary(BaseModel):
     items: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ShipmentSummary(BaseModel):
+    provider: str
+    order_code: str | None = None
+    status: str
+    fee: float = 0
+    expected_delivery_time: str | None = None
+
+
 class DemoMessageResponse(BaseModel):
     conversation_id: int
     reply: str
     actions: list[ActionResponse]
     order: OrderSummary | None = None
     invoice: InvoicePayload | None = None
+    shipment: ShipmentSummary | None = None
     recommended_products: list[ProductRecommendationResponse] = Field(default_factory=list)
     quick_replies: list[str] = Field(default_factory=list)
     ui_events: list[dict[str, str]] = Field(default_factory=list)

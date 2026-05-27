@@ -25,6 +25,7 @@ htmlcov/
 backend/.venv/
 backend/.env
 backend/.env.*
+backend/.secrets/
 backend/.pytest_cache/
 !backend/.env.example
 

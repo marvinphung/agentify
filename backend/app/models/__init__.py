@@ -6,6 +6,8 @@ from app.models.integration import ZaloIntegration
 from app.models.message import Message
 from app.models.order import Order
 from app.models.product import ProductCache
+from app.models.shipment import Shipment
+from app.models.shipment import ShipmentEvent
 from app.models.workspace import Workspace
 
 __all__ = [
@@ -17,5 +19,7 @@ __all__ = [
     "Message",
     "Order",
     "ProductCache",
+    "Shipment",
+    "ShipmentEvent",
     "Workspace",
 ]

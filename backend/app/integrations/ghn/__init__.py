@@ -1,0 +1,1 @@
+"""GHN shipping integration."""
