@@ -52,3 +52,20 @@ def test_freeship_is_not_order_intent():
 
     assert plan.intent == "unknown"
     assert "create_draft_order" not in plan.tool_plan
+
+
+def test_parse_order_ignores_spf_number_as_quantity():
+    plan = parse_message("Em muốn đặt SunCare Aqua SPF50+")
+
+    assert plan.intent == "buy_product"
+    assert plan.slots.quantity == 1
+    assert "suncare" in plan.slots.product_query.lower()
+    assert "spf50" in plan.slots.product_query.lower()
+
+
+def test_parse_contact_line_ignores_phone_and_address_numbers_as_quantity():
+    plan = parse_message("Nguyễn Thảo, 0901234567, 12 Nguyễn Trãi Hà Nội, nhận giờ hành chính")
+
+    assert plan.intent == "unknown"
+    assert plan.slots.quantity == 1
+    assert plan.slots.customer_phone == "0901234567"

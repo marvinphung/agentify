@@ -11,8 +11,9 @@ from app.agent.conversation_state import resolve_pending_order_intent
 from app.agent.invoice import build_invoice_payload
 from app.agent.llm import plan_with_llm
 from app.agent.llm_client import LLMClientError, generate_llm_json, llm_available
+from app.agent.parser import extract_quantity as parse_quantity
 from app.agent.schemas import AgentPlan, AgentUiEvent, InvoicePayload, ToolResult
-from app.agent.tools import check_stock, create_draft_order, create_shipping_order, list_agent_tools, search_product_recommendations, search_products, track_shipping_order
+from app.agent.tools import _extract_max_budget, check_stock, create_draft_order, create_shipping_order, list_agent_tools, search_product_recommendations, search_products, track_shipping_order
 from app.config import get_settings
 from app.models import AgentAction, Conversation, Message, Order, ProductCache
 from app.shared.workspace import DEFAULT_WORKSPACE_ID
@@ -395,10 +396,10 @@ def _handle_new_scenario(
     if any(word in query_norm for word in SUNSCREEN_WORDS) and _is_consultation_like(normalized):
         _supersede_pending_confirmations(db, conversation.id)
         _set_scenario_state(db, conversation.id, "sunscreen", "awaiting_skin_type")
-        recommendation_result = _sunscreen_recommendation_result(db)
+        recommendation_result = _sunscreen_recommendation_result(db, query=recommendation_query or message)
         actions.append(recommendation_result)
         conversation.status = "open"
-        reply = _sunscreen_intro_reply()
+        reply = _sunscreen_intro_reply(recommendation_result)
         return reply, actions, None, None, []
 
     return None
@@ -848,7 +849,19 @@ def _handle_generic_order_state(
     ]
 
 
-def _sunscreen_intro_reply() -> str:
+def _sunscreen_intro_reply(recommendation_result: ToolResult | None = None) -> str:
+    products = list((recommendation_result.data or {}).get("products") or []) if recommendation_result else []
+    if products:
+        lines = [
+            f"{product.get('name')} - {product.get('reason')}, giá {_format_vnd(int(product.get('price') or 0))}."
+            for product in products
+        ]
+        product_lines = "\n".join(lines)
+        return (
+            "Dạ shop chào chị ạ. Hiện tại shop còn một số dòng Kem chống nắng như sau:\n\n"
+            f"{product_lines}\n\n"
+            "Để tư vấn chính xác hơn, chị cho em hỏi da mình thuộc loại da dầu, da khô, da hỗn hợp hay da nhạy cảm ạ?"
+        )
     return (
         "Dạ shop chào chị ạ. Hiện tại shop còn một số dòng Kem chống nắng như sau:\n\n"
         "SunCare Aqua SPF50+ - phù hợp da dầu, da hỗn hợp, chất gel mỏng nhẹ, giá 320.000đ.\n"
@@ -858,8 +871,9 @@ def _sunscreen_intro_reply() -> str:
     )
 
 
-def _sunscreen_recommendation_result(db: Session) -> ToolResult:
+def _sunscreen_recommendation_result(db: Session, *, query: str | None = None) -> ToolResult:
     products: list[dict] = []
+    max_budget = _extract_max_budget(query)
     fallback_prices = {
         "SunCare Aqua SPF50+": 320000,
         "Derma Shield Sensitive SPF50": 390000,
@@ -872,11 +886,14 @@ def _sunscreen_recommendation_result(db: Session) -> ToolResult:
     }
     for name, price in fallback_prices.items():
         row = _product_by_name(db, name)
+        actual_price = float(row.base_price) if row else float(price)
+        if max_budget is not None and actual_price > max_budget:
+            continue
         products.append(
             {
                 "id": row.id if row else 0,
                 "name": name,
-                "price": float(row.base_price) if row else float(price),
+                "price": actual_price,
                 "stock": row.stock if row else 10,
                 "reason": fallback_reasons[name],
             }
@@ -884,7 +901,7 @@ def _sunscreen_recommendation_result(db: Session) -> ToolResult:
     return ToolResult(
         type="product_recommendation",
         status="success",
-        summary="Tìm thấy 3 sản phẩm kem chống nắng phù hợp theo loại da.",
+        summary=f"Tìm thấy {len(products)} sản phẩm kem chống nắng phù hợp theo loại da.",
         data={"products": products},
     )
 
@@ -991,8 +1008,7 @@ def _extract_phone_from_text(message: str | None) -> str | None:
 
 
 def _extract_quantity(message: str) -> int:
-    match = re.search(r"\b(\d+)\b", message)
-    return max(int(match.group(1)), 1) if match else 1
+    return parse_quantity(message)
 
 
 def _parse_slot(normalized: str) -> str | None:

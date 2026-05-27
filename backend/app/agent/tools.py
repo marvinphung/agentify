@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -139,8 +140,11 @@ def search_product_recommendations(db: Session, query: str | None, *, limit: int
         return ToolResult(type="product_recommendation", status="failed", summary="Chưa có nhóm sản phẩm để tư vấn.")
     products = list(db.scalars(select(ProductCache).where(ProductCache.workspace_id == DEFAULT_WORKSPACE_ID).limit(200)))
     query_norm = normalize_text(query)
+    max_budget = _extract_max_budget(query)
     scored: list[tuple[int, ProductCache]] = []
     for product in products:
+        if max_budget is not None and float(product.base_price or 0) > max_budget:
+            continue
         score = _product_score(product, query_norm)
         metadata_norm = normalize_text(" ".join(str(value) for value in (product.raw_json or {}).values()))
         for token in query_norm.split():
@@ -167,6 +171,25 @@ def search_product_recommendations(db: Session, query: str | None, *, limit: int
         summary=f"Tìm thấy {len(recommendations)} sản phẩm phù hợp với '{query}'.",
         data={"products": recommendations},
     )
+
+
+def _extract_max_budget(query: str | None) -> float | None:
+    normalized = normalize_text(query or "")
+    match = re.search(
+        r"(?:duoi|toi da|khong qua|nho hon|<=|<)\s*(\d+(?:[.,]\d+)?)\s*(k|nghin|ngan|trieu|m)?",
+        normalized,
+    )
+    if not match:
+        return None
+    amount = float(match.group(1).replace(",", "."))
+    unit = match.group(2) or ""
+    if unit in {"k", "nghin", "ngan"}:
+        amount *= 1000
+    elif unit in {"trieu", "m"}:
+        amount *= 1_000_000
+    elif amount < 10_000:
+        amount *= 1000
+    return amount
 
 
 def lookup_order(db: Session, *, customer_phone: str | None = None, order_code: str | None = None) -> ToolResult:

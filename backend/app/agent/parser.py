@@ -4,6 +4,14 @@ from app.agent.schemas import AgentPlan, AgentSlots
 BUY_WORDS = ("mua", "lấy", "lay", "đặt", "dat", "ship", "giao", "lên đơn", "len don")
 STOCK_WORDS = ("còn", "con", "tồn", "ton", "giá", "gia")
 CONSULT_WORDS = ("tư vấn", "tu van", "gợi ý", "goi y", "recommend", "nên dùng", "nen dung", "phù hợp", "phu hop")
+QUANTITY_UNITS = r"cái|hop|hộp|chai|tuýp|túyp|tube|gói|goi|sp|sản phẩm|san pham"
+QUANTITY_WITH_UNIT_RE = re.compile(rf"(?<![A-Za-zÀ-ỹ0-9])(\d{{1,3}})\s*(?:{QUANTITY_UNITS})(?![A-Za-zÀ-ỹ0-9])", re.IGNORECASE)
+QUANTITY_AFTER_BUY_RE = re.compile(
+    r"(?<![A-Za-zÀ-ỹ0-9])(?:mua|lấy|lay|đặt|dat|chốt|chot|order)\s+"
+    r"(?:cho\s+(?:chị|chi|em|mình|minh)\s+)?"
+    r"(\d{1,3})(?!\s*(?:ml|g|kg|cm|mm|\+))(?![A-Za-zÀ-ỹ0-9])",
+    re.IGNORECASE,
+)
 STOPWORDS = {
     "anh",
     "tôi",
@@ -63,6 +71,18 @@ STOPWORDS = {
 }
 
 
+def extract_quantity(message: str) -> int:
+    unit_match = QUANTITY_WITH_UNIT_RE.search(message)
+    if unit_match:
+        return max(int(unit_match.group(1)), 1)
+
+    buy_match = QUANTITY_AFTER_BUY_RE.search(message)
+    if buy_match:
+        return max(int(buy_match.group(1)), 1)
+
+    return 1
+
+
 def parse_message(message: str, *, customer_name: str | None = None, customer_phone: str | None = None) -> AgentPlan:
     raw = message.strip()
     lower = raw.lower()
@@ -74,11 +94,7 @@ def parse_message(message: str, *, customer_name: str | None = None, customer_ph
     elif _contains_any(lower, STOCK_WORDS):
         intent = "ask_stock"
 
-    quantity = 1
-    quantity_match = re.search(r"(\d+)\s*(cái|hop|hộp|chai|tuýp|túyp|gói|goi|sp|sản phẩm)?", lower)
-    if quantity_match:
-        quantity = max(int(quantity_match.group(1)), 1)
-
+    quantity = extract_quantity(raw)
     phone = extract_phone(raw) or customer_phone
 
     address = extract_address(raw)
@@ -162,7 +178,8 @@ def extract_phone(message: str) -> str | None:
 def extract_product_query(message: str) -> str | None:
     text = re.sub(r"(?:sđt|sdt|số điện thoại|so dien thoai)\s*[:,]?\s*\d+", " ", message, flags=re.IGNORECASE)
     text = re.sub(r"(?:giao\s*(?:tới|đến)|dia chi|địa chỉ)\s*[:,]?\s*.+$", " ", text, flags=re.IGNORECASE)
-    text = re.sub(r"\d+\s*(cái|hop|hộp|chai|tuýp|túyp|gói|goi|sp|sản phẩm)?", " ", text, flags=re.IGNORECASE)
+    text = QUANTITY_WITH_UNIT_RE.sub(" ", text)
+    text = QUANTITY_AFTER_BUY_RE.sub(" ", text)
     tokens = [token.strip(" ,.!?;:").lower() for token in text.split()]
     kept = [token for token in tokens if token and token not in STOPWORDS]
     return " ".join(kept).strip() or None
