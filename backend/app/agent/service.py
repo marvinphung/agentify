@@ -860,21 +860,21 @@ def _sunscreen_intro_reply(recommendation_result: ToolResult | None = None) -> s
     products = list((recommendation_result.data or {}).get("products") or []) if recommendation_result else []
     if products:
         lines = [
-            f"{product.get('name')} - {product.get('reason')}, giá {_format_vnd(int(product.get('price') or 0))}."
+            f"{product.get('name')}: {product.get('reason')} Giá {_format_vnd(int(product.get('price') or 0))}đ."
             for product in products
         ]
         product_lines = "\n".join(lines)
         return (
-            "Dạ shop chào chị ạ. Hiện tại shop còn một số dòng Kem chống nắng như sau:\n\n"
+            "Dạ được ạ. Với kem chống nắng, em đang có vài lựa chọn dễ tư vấn theo loại da:\n\n"
             f"{product_lines}\n\n"
-            "Để tư vấn chính xác hơn, chị cho em hỏi da mình thuộc loại da dầu, da khô, da hỗn hợp hay da nhạy cảm ạ?"
+            "Da mình thiên dầu, khô, hỗn hợp hay nhạy cảm để em chọn sát hơn cho chị?"
         )
     return (
-        "Dạ shop chào chị ạ. Hiện tại shop còn một số dòng Kem chống nắng như sau:\n\n"
-        "SunCare Aqua SPF50+ - phù hợp da dầu, da hỗn hợp, chất gel mỏng nhẹ, giá 320.000đ.\n"
-        "Derma Shield Sensitive SPF50 - phù hợp da nhạy cảm hoặc da đang treatment, không cồn, không hương liệu, giá 390.000đ.\n"
-        "Moist UV Cream SPF50+ - phù hợp da khô, có thêm thành phần dưỡng ẩm, giá 350.000đ.\n\n"
-        "Để tư vấn chính xác hơn, chị cho em hỏi da mình thuộc loại da dầu, da khô, da hỗn hợp hay da nhạy cảm ạ?"
+        "Dạ được ạ. Với kem chống nắng, em đang có vài lựa chọn dễ tư vấn theo loại da:\n\n"
+        "SunCare Aqua SPF50+: hợp da dầu/da hỗn hợp, chất gel mỏng nhẹ, giá 320.000đ.\n"
+        "Derma Shield Sensitive SPF50: hợp da nhạy cảm hoặc da đang treatment, không cồn, không hương liệu, giá 390.000đ.\n"
+        "Moist UV Cream SPF50+: hợp da khô, có thêm dưỡng ẩm, giá 350.000đ.\n\n"
+        "Da mình thiên dầu, khô, hỗn hợp hay nhạy cảm để em chọn sát hơn cho chị?"
     )
 
 
@@ -920,18 +920,17 @@ def _format_vnd(value: int | float) -> str:
 def _sunscreen_detail_reply(product_name: str, price: int) -> str:
     if normalize_text(product_name) == "derma shield sensitive spf50":
         return (
-            "Dạ Derma Shield Sensitive SPF50 phù hợp với da nhạy cảm hoặc da đang treatment. Sản phẩm không cồn, không hương liệu nên thiên về làm dịu và hạn chế kích ứng.\n\n"
-            f"Hiện sản phẩm còn hàng, giá là {_format_vnd(price)}đ. Chị muốn đặt 1 tuýp không ạ?"
+            "Derma Shield Sensitive SPF50 hợp hơn khi da nhạy cảm hoặc đang treatment vì công thức thiên về dịu nhẹ, không cồn và không hương liệu.\n\n"
+            f"Dòng này còn hàng, giá {_format_vnd(price)}đ. Chị muốn lấy 1 tuýp hay để em so thêm với dòng khác?"
         )
     if normalize_text(product_name) == "moist uv cream spf50+":
         return (
-            "Dạ Moist UV Cream SPF50+ phù hợp với da khô vì có thêm thành phần dưỡng ẩm, giúp da đỡ căng khi dùng chống nắng hằng ngày.\n\n"
-            f"Hiện sản phẩm còn hàng, giá là {_format_vnd(price)}đ. Chị muốn đặt 1 tuýp không ạ?"
+            "Moist UV Cream SPF50+ hợp da khô hơn vì có thêm dưỡng ẩm, dùng hằng ngày sẽ đỡ cảm giác căng da.\n\n"
+            f"Dòng này còn hàng, giá {_format_vnd(price)}đ. Chị muốn lấy 1 tuýp không ạ?"
         )
     return (
-        "Dạ SunCare Aqua SPF50+ là kem chống nắng phù hợp với da dầu và da hỗn hợp. Sản phẩm có chỉ số SPF50+, kết cấu dạng gel nên khá nhẹ mặt, dễ tán, không gây cảm giác dày bí như một số loại kem chống nắng truyền thống.\n\n"
-        "Sản phẩm phù hợp nếu chị cần dùng hằng ngày khi đi học, đi làm, ra ngoài nhẹ. Với da dầu, chị nên dùng lượng vừa đủ, tẩy trang kỹ cuối ngày để tránh bít tắc lỗ chân lông.\n\n"
-        f"Hiện sản phẩm còn hàng, giá là {_format_vnd(price)}đ. Chị muốn đặt 1 tuýp không ạ?"
+        "SunCare Aqua SPF50+ hợp da dầu và da hỗn hợp vì chất gel nhẹ, thấm nhanh và đỡ bí mặt hơn các dòng kem đặc.\n\n"
+        f"Dòng này còn hàng, giá {_format_vnd(price)}đ. Chị muốn lấy 1 tuýp không ạ?"
     )
 
 
@@ -1235,14 +1234,14 @@ def _is_appointment_message(message: str) -> bool:
 def _tracking_reply(order: Order, track_result: ToolResult) -> str:
     if track_result.status != "success":
         return (
-            f"Dạ em đã tìm thấy đơn #{order.id}, nhưng hiện chưa cập nhật được mã vận đơn GHN cho đơn này. "
-            f"{track_result.summary} Shop sẽ kiểm tra lại và phản hồi chị sớm ạ."
+            f"Dạ em thấy đơn #{order.id} rồi, nhưng hiện chưa lấy được mã vận đơn GHN cho đơn này. "
+            f"{track_result.summary} Em sẽ để shop kiểm tra lại giúp chị."
         )
     code = track_result.data.get("order_code") or "chưa có mã"
     status = track_result.data.get("status") or "đang xử lý"
     eta = track_result.data.get("expected_delivery_time")
     eta_line = f"\nDự kiến giao: {eta}" if eta else ""
-    return f"Dạ em kiểm tra trên GHN rồi ạ.\nMã vận đơn: {code}\nTrạng thái hiện tại: {status}{eta_line}"
+    return f"Dạ em kiểm tra được rồi ạ.\nMã vận đơn: {code}\nTrạng thái hiện tại: {status}{eta_line}"
 
 
 def _order_support_reply(db: Session, conversation_id: int, customer_name: str | None, customer_phone: str | None) -> str:
@@ -1253,13 +1252,12 @@ def _order_support_reply(db: Session, conversation_id: int, customer_name: str |
         if order.items and isinstance(order.items[0], dict):
             first_item = order.items[0].get("name") or first_item
         return (
-            f"Dạ {display_name}, em đã tra lịch sử mua hàng và thấy đơn gần nhất #{order.id} gồm {first_item}, "
-            f"tổng {int(order.total):,}đ. Em đã ghi nhận yêu cầu của chị và chuyển nhân viên kiểm tra chính sách xử lý đơn này. "
-            "Chị mô tả thêm giúp em lý do muốn hoàn tiền/đổi trả/hủy đơn nhé."
+            f"Dạ {display_name}, em thấy đơn gần nhất #{order.id} gồm {first_item}, tổng {_format_vnd(int(order.total))}đ. "
+            "Chị mô tả thêm giúp em vấn đề đang gặp là giao trễ, muốn đổi/trả hay cần hoàn tiền để em chuyển đúng hướng xử lý nhé."
         )
     return (
-        f"Dạ {display_name}, để kiểm tra yêu cầu hoàn tiền/đổi trả/hủy đơn, chị gửi giúp em mã đơn hoặc số điện thoại đã đặt hàng. "
-        "Em sẽ tra đơn gần nhất rồi chuyển nhân viên xử lý đúng chính sách cho chị."
+        f"Dạ {display_name}, chị gửi giúp em mã đơn hoặc số điện thoại đã đặt hàng nhé. "
+        "Em sẽ tra đơn gần nhất rồi hỗ trợ tiếp phần giao hàng, đổi trả hoặc hoàn tiền."
     )
 
 
@@ -1335,52 +1333,51 @@ async def _reply_with_general_llm(db: Session, conversation_id: int, message: st
 
 def _stock_reply(product_result: ToolResult, stock_result: ToolResult) -> str:
     if product_result.status != "success":
-        return f"Dạ em chưa tìm thấy sản phẩm phù hợp. {product_result.summary}"
-    return f"Dạ {stock_result.summary}"
+        return f"Dạ em chưa tìm thấy đúng sản phẩm này. {product_result.summary}"
+    return f"Dạ {stock_result.summary} Chị muốn em giữ sản phẩm này để lên đơn không ạ?"
 
 
 def _consultation_reply(recommendation_result: ToolResult, query: str | None) -> str:
     products = recommendation_result.data.get("products") or []
     if recommendation_result.status != "success" or not products:
-        return f"Dạ em chưa tìm thấy sản phẩm phù hợp với nhu cầu {query or 'này'}. Chị mô tả thêm loại da hoặc ngân sách để em tư vấn sát hơn nhé."
-    lines = [
-        "Dạ em đang tìm trong danh sách sản phẩm KiotViet của shop và thấy các lựa chọn phù hợp:",
-    ]
+        return f"Dạ em chưa thấy sản phẩm thật sát với nhu cầu {query or 'này'}. Chị cho em thêm loại da hoặc ngân sách mong muốn để em lọc lại nhé."
+    lines = ["Dạ em gợi ý vài lựa chọn hợp nhu cầu của chị:"]
     for index, product in enumerate(products[:4], start=1):
         price = int(product.get("price") or 0)
         stock = int(product.get("stock") or 0)
-        lines.append(f"{index}. {product.get('name')} - {price:,}đ, còn {stock}.")
-    lines.append("Chị cho em biết da dầu, da khô, da mụn hay da nhạy cảm để em chốt loại phù hợp nhất nhé.")
+        reason = str(product.get("reason") or "phù hợp nhu cầu chị mô tả").rstrip(".")
+        lines.append(f"{index}. {product.get('name')} - {_format_vnd(price)}đ, còn {stock}. {reason}.")
+    lines.append("Chị cho em biết da mình thiên dầu, khô, mụn hay nhạy cảm để em chốt loại sát nhất nhé.")
     return "\n".join(lines)
 
 
 def _missing_info_reply(plan: AgentPlan, order_result: ToolResult) -> str:
     if not plan.slots.customer_name:
-        return "Dạ sản phẩm còn hàng. Chị cho em xin tên người nhận để em lên thông tin đơn nhé."
+        return "Dạ sản phẩm còn hàng. Chị gửi giúp em tên người nhận để em xác nhận đơn cho đúng nhé."
     if not plan.slots.customer_phone:
-        return "Dạ sản phẩm còn hàng. Chị cho em xin số điện thoại để em lên đơn nhé."
+        return "Dạ sản phẩm còn hàng. Chị gửi giúp em số điện thoại nhận hàng nhé."
     if not plan.slots.shipping_address:
-        return "Dạ sản phẩm còn hàng. Chị cho em xin địa chỉ giao hàng để em lên đơn nhé."
-    return f"Dạ em chưa thể tạo đơn. {order_result.summary}"
+        return "Dạ sản phẩm còn hàng. Chị gửi giúp em địa chỉ nhận hàng để em xác nhận đơn nhé."
+    return f"Dạ em chưa thể tạo đơn lúc này. {order_result.summary}"
 
 
 def _order_reply(product_result: ToolResult, quantity: int, order: Order | None, shipping_result: ToolResult | None = None) -> str:
     name = product_result.data.get("name", "sản phẩm")
     order_code = f"#{order.id}" if order else ""
     total = int(order.total) if order else 0
-    shipping_line = "Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển."
+    shipping_line = "Đơn dự kiến giao trong khoảng 2-4 ngày tùy khu vực."
     if shipping_result and shipping_result.status == "success":
         ghn_code = shipping_result.data.get("order_code")
         eta = shipping_result.data.get("expected_delivery_time")
-        shipping_line = f"Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển. Em cũng đã gửi thông tin đơn sang GHN. Mã vận đơn của chị là {ghn_code}."
+        shipping_line = f"Em cũng đã gửi thông tin sang GHN. Mã vận đơn của chị là {ghn_code}."
         if eta:
-            shipping_line += f" GHN đang trả ETA hệ thống: {eta}."
-        shipping_line += " Chị có thể nhắn \"kiểm tra đơn\" để em cập nhật trạng thái giao hàng."
+            shipping_line += f" Dự kiến giao: {eta}."
+        shipping_line += " Khi cần, chị nhắn \"kiểm tra đơn\" để em cập nhật trạng thái."
     elif shipping_result and shipping_result.status == "skipped":
-        shipping_line = "Đơn hàng dự kiến giao trong khoảng 2-4 ngày tùy khu vực vận chuyển. Phần tạo vận đơn GHN sẽ chạy tự động khi shop cấu hình đủ GHN_TOKEN, GHN_SHOP_ID và mã địa chỉ."
+        shipping_line = "Đơn dự kiến giao trong khoảng 2-4 ngày. Phần tạo vận đơn GHN sẽ chạy khi shop cấu hình đủ thông tin giao hàng."
     return (
-        f"Dạ em đã ghi nhận đơn hàng và xuất hóa đơn điện tử cho chị. Đơn {order_code}: {quantity} {name}, tổng {_format_vnd(total)}đ.\n"
-        f"{shipping_line} Cảm ơn chị đã tin tưởng shop ạ."
+        f"Dạ em đã tạo hóa đơn cho đơn {order_code}: {quantity} {name}, tổng {_format_vnd(total)}đ.\n"
+        f"{shipping_line} Em cảm ơn chị."
     )
 
 
@@ -1390,13 +1387,13 @@ def _confirmation_reply(product_result: ToolResult, plan: AgentPlan) -> str:
     price = int(product_result.data.get("base_price") or 0)
     total = price * quantity
     return (
-        "Dạ em kiểm tra sản phẩm còn hàng. Chị xác nhận giúp em thông tin trước khi em tạo hóa đơn điện tử nhé:\n"
-        f"- Sản phẩm: {quantity} {name}\n"
-        f"- Tổng tạm tính: {total:,}đ\n"
-        f"- Người nhận: {plan.slots.customer_name}\n"
-        f"- SĐT: {plan.slots.customer_phone}\n"
-        f"- Địa chỉ: {plan.slots.shipping_address}\n"
-        "Nếu đúng, chị nhắn \"đúng rồi\" hoặc \"xác nhận\". Nếu sai, chị gửi lại thông tin cần sửa giúp em."
+        "Em đọc lại đơn giúp chị trước khi tạo hóa đơn nhé:\n"
+        f"Sản phẩm: {quantity} {name}\n"
+        f"Tổng tạm tính: {_format_vnd(total)}đ\n"
+        f"Người nhận: {plan.slots.customer_name}\n"
+        f"SĐT: {plan.slots.customer_phone}\n"
+        f"Địa chỉ: {plan.slots.shipping_address}\n\n"
+        "Nếu đúng, chị nhắn \"Đúng rồi\". Nếu cần sửa, chị gửi lại phần muốn đổi giúp em."
     )
 
 
