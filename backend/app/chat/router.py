@@ -49,6 +49,9 @@ def _shipment_from_actions(actions: list) -> ShipmentSummary | None:
 
 
 def _quick_replies_from_actions(actions: list, *, has_invoice: bool) -> list[str]:
+    for action in reversed(actions):
+        if action.type == "suggested_replies" and action.status == "success" and action.data.get("quick_replies"):
+            return list(action.data["quick_replies"])[:4]
     if has_invoice:
         return ["Kiểm tra trạng thái đơn", "Mua thêm", "Gặp nhân viên"]
     if any(action.type == "order_confirmation_pending" for action in actions):

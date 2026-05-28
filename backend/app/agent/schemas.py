@@ -49,3 +49,35 @@ class ToolResult(BaseModel):
     status: str
     summary: str
     data: dict = Field(default_factory=dict)
+
+
+class AgentConversationContext(BaseModel):
+    conversation_id: int
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    message: str
+    history: list[dict[str, str]] = Field(default_factory=list)
+    active_scenario: dict | None = None
+    active_product_focus: str | None = None
+
+
+class AgentToolDecision(BaseModel):
+    intent: str = "unknown"
+    needs_tool: bool = False
+    selected_tool: str | None = None
+    tool_args: dict = Field(default_factory=dict)
+    active_product_focus: str | None = None
+    next_state: dict | None = None
+    handoff: bool = False
+    confidence: float = 0.0
+    reason: str | None = None
+
+
+class AgentReplyResult(BaseModel):
+    reply: str
+    actions: list[str] = Field(default_factory=list)
+    state_update: dict | None = None
+
+
+class AgentSuggestionResult(BaseModel):
+    quick_replies: list[str] = Field(default_factory=list)

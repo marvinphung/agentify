@@ -830,7 +830,7 @@ function UserChatScreen() {
           {messages.map((item, index) => (
             <ChatMessage key={index} sender={item.sender === 'customer' ? 'customer' : 'ai'} text={item.text} />
           ))}
-          {loading && <ChatMessage sender="ai" text="Đang gửi tin nhắn và xử lý đơn..." />}
+          {loading && <ChatMessage sender="ai" text="Lumi Beauty đang tư vấn..." />}
 
           {!!invoice && (
             <DigitalInvoiceCard
@@ -1577,7 +1577,7 @@ function InboxScreen({ onNavigate, onOpenModal, onNotify, onDemoResult }: { onNa
           )) : (
             <ChatMessage sender="ai" text="Chưa có tin nhắn trong hội thoại này. Tin nhắn từ `/user_chat` sẽ hiện ở đây sau khi khách gửi." />
           )}
-          {sending && <ChatMessage sender="ai" text="Agentify đang gọi LLM, tìm sản phẩm trong KiotViet và kiểm tra tồn kho..." />}
+          {sending && <ChatMessage sender="ai" text="Lumi Beauty đang đọc ngữ cảnh và soạn câu trả lời..." />}
         </div>
         <div className="p-4 border-t border-slate-200">
           <div className="mb-3 grid grid-cols-2 gap-3">

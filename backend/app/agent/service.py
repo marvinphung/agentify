@@ -12,7 +12,8 @@ from app.agent.invoice import build_invoice_payload
 from app.agent.llm import plan_with_llm
 from app.agent.llm_client import LLMClientError, generate_llm_json, llm_available
 from app.agent.parser import extract_quantity as parse_quantity
-from app.agent.schemas import AgentPlan, AgentUiEvent, InvoicePayload, ToolResult
+from app.agent.pipeline import decide_next_tool, execute_selected_tool, generate_customer_reply, generate_quick_replies
+from app.agent.schemas import AgentConversationContext, AgentPlan, AgentToolDecision, AgentUiEvent, InvoicePayload, ToolResult
 from app.agent.tools import _extract_max_budget, check_stock, create_draft_order, create_shipping_order, list_agent_tools, search_product_recommendations, search_products, track_shipping_order
 from app.config import get_settings
 from app.models import AgentAction, Conversation, Message, Order, ProductCache
@@ -81,11 +82,22 @@ async def process_customer_message(
     invoice: InvoicePayload | None = None
     ui_events: list[AgentUiEvent] = []
 
-    if plan.intent in {"product_consultation", "ask_stock"}:
-        _clear_active_scenarios(db, conversation.id)
-
+    context = _build_pipeline_context(
+        db,
+        conversation=conversation,
+        customer_name=effective_customer_name,
+        customer_phone=customer_phone,
+        message=message,
+    )
     active_scenario = _latest_active_scenario(db, conversation.id)
-    if active_scenario:
+    switches_topic = _message_switches_topic(message, active_scenario)
+    pipeline_before_active_scenario = (
+        active_scenario is not None
+        and not switches_topic
+        and _is_active_product_detail_context(context)
+        and _should_use_llm_pipeline(context, plan)
+    )
+    if active_scenario and not switches_topic and not pipeline_before_active_scenario:
         handled = _handle_active_scenario(
             db,
             active_scenario=active_scenario,
@@ -97,6 +109,16 @@ async def process_customer_message(
         if handled:
             return _finalize_agent_reply(db, conversation.id, plan, *handled)
 
+    if active_scenario and switches_topic:
+        _clear_active_scenarios(db, conversation.id)
+        context = _build_pipeline_context(
+            db,
+            conversation=conversation,
+            customer_name=effective_customer_name,
+            customer_phone=customer_phone,
+            message=message,
+        )
+
     scenario_handled = _handle_new_scenario(
         db,
         conversation=conversation,
@@ -106,17 +128,6 @@ async def process_customer_message(
     )
     if scenario_handled:
         return _finalize_agent_reply(db, conversation.id, plan, *scenario_handled)
-
-    if plan.intent == "product_consultation":
-        _supersede_pending_confirmations(db, conversation.id)
-        recommendation_result = search_product_recommendations(db, plan.slots.product_query)
-        actions.append(recommendation_result)
-        conversation.status = "open"
-        reply = _consultation_reply(recommendation_result, plan.slots.product_query)
-        actions.append(ToolResult(type="reply", status="success", summary=reply))
-        _persist_actions(db, conversation.id, actions)
-        _persist_ai_message(db, conversation.id, reply)
-        return plan, reply, actions, None, None, ui_events
 
     if _is_order_support_message(message):
         _supersede_pending_confirmations(db, conversation.id)
@@ -178,6 +189,51 @@ async def process_customer_message(
             _persist_actions(db, conversation.id, actions)
             _persist_ai_message(db, conversation.id, reply)
             return plan, reply, actions, order, invoice, ui_events
+
+    if _should_use_llm_pipeline(context, plan):
+        decision = await decide_next_tool(context)
+        actions.append(
+            ToolResult(
+                type="llm_tool_decision",
+                status="success",
+                summary=decision.reason or f"LLM decision: {decision.intent}",
+                data=decision.model_dump(),
+            )
+        )
+        if decision.intent == "product_consultation_detail":
+            actions.append(ToolResult(type="product_consultation_detail", status="success", summary="Pipeline kept active product consultation detail."))
+            _advance_pipeline_product_detail_state(active_scenario, decision, context)
+        tool_result = execute_selected_tool(db, decision)
+        if tool_result:
+            actions.append(tool_result)
+        reply_result = await generate_customer_reply(context, decision, tool_result)
+        suggestions = await generate_quick_replies(context, decision, tool_result, reply_result)
+        for summary in reply_result.actions[:4]:
+            actions.append(ToolResult(type="llm_context_reply", status="success", summary=summary))
+        actions.append(
+            ToolResult(
+                type="suggested_replies",
+                status="success",
+                summary="Đã gợi ý câu trả lời nhanh theo ngữ cảnh.",
+                data=suggestions.model_dump(),
+            )
+        )
+        conversation.status = "open"
+        actions.append(ToolResult(type="reply", status="success", summary=reply_result.reply))
+        _persist_actions(db, conversation.id, actions)
+        _persist_ai_message(db, conversation.id, reply_result.reply)
+        return plan, reply_result.reply, actions, None, None, ui_events
+
+    if plan.intent == "product_consultation":
+        _supersede_pending_confirmations(db, conversation.id)
+        recommendation_result = search_product_recommendations(db, plan.slots.product_query)
+        actions.append(recommendation_result)
+        conversation.status = "open"
+        reply = _consultation_reply(recommendation_result, plan.slots.product_query)
+        actions.append(ToolResult(type="reply", status="success", summary=reply))
+        _persist_actions(db, conversation.id, actions)
+        _persist_ai_message(db, conversation.id, reply)
+        return plan, reply, actions, None, None, ui_events
 
     if plan.intent == "unknown":
         llm_reply = await _reply_with_general_llm(db, conversation.id, message, customer_name, customer_phone)
@@ -296,6 +352,208 @@ def _latest_active_scenario(db: Session, conversation_id: int) -> AgentAction | 
         )
         .order_by(AgentAction.created_at.desc(), AgentAction.id.desc())
     )
+
+
+def _message_switches_topic(message: str, active_scenario: AgentAction | None) -> bool:
+    if active_scenario is None:
+        return True
+
+    normalized = normalize_text(message)
+    contextual_replies = {
+        "co",
+        "ok",
+        "oki",
+        "okay",
+        "duoc",
+        "duoc a",
+        "tu van ky hon",
+        "ky hon",
+        "loai do",
+        "dong do",
+        "san pham do",
+    }
+    if normalized in contextual_replies:
+        return False
+
+    raw_scenario = active_scenario.raw_json if isinstance(active_scenario.raw_json, dict) else {}
+    scenario = raw_scenario.get("scenario")
+    data = raw_scenario.get("data") if isinstance(raw_scenario.get("data"), dict) else {}
+    active_focus = normalize_text(str(data.get("selected_product") or data.get("product_query") or ""))
+
+    if scenario == "feedback" and _is_feedback_message(normalized):
+        return False
+    if scenario == "irritation" and (_has_severe_irritation(normalized) or _is_irritation_message(normalized)):
+        return False
+    if scenario == "fulfillment_complaint" and _is_fulfillment_complaint(normalized):
+        return False
+    if scenario == "skin_appointment" and _is_appointment_message(message):
+        return False
+    generic_focus_tokens = {
+        "kem",
+        "cream",
+        "serum",
+        "sua",
+        "rua",
+        "mat",
+        "cleanser",
+        "toner",
+        "spf",
+        "spf50",
+        "spf50+",
+    }
+    active_focus_tokens = {
+        token
+        for token in active_focus.split()
+        if len(token) > 2 and token not in generic_focus_tokens
+    }
+    if active_focus_tokens and any(token in normalized for token in active_focus_tokens):
+        return False
+
+    product_topic_words = (
+        "serum",
+        "sua rua mat",
+        "cleanser",
+        "toner",
+        "nuoc hoa hong",
+        "kem duong",
+        "ceramide",
+        "retinol",
+        "niacinamide",
+        "cica",
+        "tay trang",
+        "mat na",
+        "son",
+    )
+    stock_topic_words = ("con", "con hang", "ton kho", "het hang", "co hang")
+    if any(word in normalized for word in product_topic_words) and any(word in normalized for word in stock_topic_words):
+        return True
+
+    explicit_switches = (
+        "tu van serum",
+        "tu van sua rua mat",
+        "tu van toner",
+        "tu van kem duong",
+        "kiem tra don",
+        "trang thai don",
+        "dat san pham khac",
+        "doi san pham",
+        "san pham khac",
+    )
+    if any(phrase in normalized for phrase in explicit_switches):
+        return True
+
+    if _is_consultation_like(normalized) and any(word in normalized for word in SUNSCREEN_WORDS):
+        return scenario != "sunscreen"
+
+    if any(word in normalized for word in SUNSCREEN_WORDS) and any(word in normalized for word in stock_topic_words):
+        return scenario != "sunscreen"
+
+    if (
+        _is_order_support_message(message)
+        or _is_appointment_message(message)
+        or _has_severe_irritation(normalized)
+        or _is_irritation_message(normalized)
+        or _is_fulfillment_complaint(normalized)
+        or _is_feedback_message(normalized)
+    ):
+        return True
+
+    if _is_consultation_like(normalized):
+        if any(word in normalized for word in product_topic_words):
+            return True
+
+    if len(normalized.split()) <= 4:
+        return False
+
+    return False
+
+
+def _build_pipeline_context(
+    db: Session,
+    conversation: Conversation,
+    customer_name: str | None,
+    customer_phone: str | None,
+    message: str,
+    history_limit: int = 16,
+) -> AgentConversationContext:
+    history_rows = list(
+        db.scalars(
+            select(Message)
+            .where(Message.conversation_id == conversation.id)
+            .order_by(desc(Message.created_at), desc(Message.id))
+            .limit(history_limit)
+        )
+    )
+    history_rows.reverse()
+
+    active_state = _latest_active_scenario(db, conversation.id)
+    raw_scenario = active_state.raw_json if active_state else None
+    active_scenario = dict(raw_scenario) if isinstance(raw_scenario, dict) else None
+    raw_data = active_scenario.get("data") if active_scenario else None
+    scenario_data = dict(raw_data) if isinstance(raw_data, dict) else {}
+    active_product_focus = scenario_data.get("selected_product") or scenario_data.get("product_query")
+
+    return AgentConversationContext(
+        conversation_id=conversation.id,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        message=message,
+        history=[
+            {"role": "assistant" if row.sender == "ai" else "user", "content": row.content}
+            for row in history_rows
+        ],
+        active_scenario=active_scenario,
+        active_product_focus=active_product_focus,
+    )
+
+
+def _should_use_llm_pipeline(context: AgentConversationContext, plan: AgentPlan) -> bool:
+    normalized = normalize_text(context.message)
+    if plan.intent == "buy_product" or "create_draft_order" in plan.tool_plan:
+        return False
+    if _is_buy_like(normalized) or _is_explicit_confirmation(normalized):
+        return False
+    if _is_order_support_message(context.message) or _is_appointment_message(context.message):
+        return False
+    if _has_severe_irritation(normalized) or _is_irritation_message(normalized) or _is_fulfillment_complaint(normalized):
+        return False
+
+    scenario = context.active_scenario or {}
+    if scenario.get("scenario") in {"generic_order", "irritation", "fulfillment_complaint", "skin_appointment"}:
+        return False
+
+    if context.active_product_focus:
+        return True
+    if plan.intent == "unknown":
+        return True
+    return False
+
+
+def _is_active_product_detail_context(context: AgentConversationContext) -> bool:
+    scenario = context.active_scenario or {}
+    return (
+        scenario.get("scenario") == "sunscreen"
+        and scenario.get("step") == "awaiting_product_detail"
+        and bool(context.active_product_focus)
+    )
+
+
+def _advance_pipeline_product_detail_state(
+    active_scenario: AgentAction | None,
+    decision: AgentToolDecision,
+    context: AgentConversationContext,
+) -> None:
+    if active_scenario is None:
+        return
+    raw = active_scenario.raw_json if isinstance(active_scenario.raw_json, dict) else {}
+    if raw.get("scenario") != "sunscreen" or raw.get("step") != "awaiting_product_detail":
+        return
+    raw_data = raw.get("data")
+    data = dict(raw_data) if isinstance(raw_data, dict) else {}
+    selected_product = decision.active_product_focus or context.active_product_focus
+    if selected_product:
+        data["selected_product"] = selected_product
+    _update_scenario_state(active_scenario, step="awaiting_order_decision", data=data)
 
 
 def _set_scenario_state(db: Session, conversation_id: int, scenario: str, step: str, data: dict | None = None) -> AgentAction:
@@ -424,7 +682,8 @@ def _handle_active_scenario(
     raw = active_scenario.raw_json or {}
     scenario = raw.get("scenario")
     step = raw.get("step")
-    data = dict(raw.get("data") or {})
+    raw_data = raw.get("data")
+    data = dict(raw_data) if isinstance(raw_data, dict) else {}
     normalized = normalize_text(message)
 
     if scenario == "sunscreen":

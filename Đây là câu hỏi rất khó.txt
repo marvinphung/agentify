@@ -1,0 +1,100 @@
+Đây là câu hỏi rất khó và chắc chắn giám khảo sẽ hỏi. Câu trả lời tốt không nên là “bọn em chắc chắn thắng Sapo/KiotViet”, vì nghe hơi ảo. Cách trả lời đúng là:
+
+“Bọn em không cạnh tranh trực diện với Sapo/KiotViet ở lớp POS. Bọn em cạnh tranh ở lớp AI agent chuyên sâu theo ngành, hoạt động cross-platform, có thể cắm vào nhiều hệ thống sẵn có. Sapo/KiotViet là platform vận hành; Agentify là AI operation layer.”
+
+1. Thừa nhận Sapo/KiotViet rất mạnh
+
+Bạn nên nói thẳng:
+
+“Sapo và KiotViet là những đối thủ rất mạnh vì họ có sẵn merchant base, dữ liệu bán hàng, POS, đơn hàng và vận chuyển. Sapo đã có Chat OmniAI hỗ trợ tư vấn, chốt đơn trên Facebook/Shopee, có chatbot AI, AI bám đuổi khách không phản hồi và tạo đơn ngay trong giao diện chat. KiotViet cũng đã có Chat đa kênh gom hội thoại từ Facebook, Instagram, Shopee, Zalo OA vào một giao diện, và có Public API cho phép đọc/ghi dữ liệu như hàng hóa, đơn hàng, khách hàng, hóa đơn.”
+
+Câu này làm bạn trông thực tế, không ngây thơ.
+
+2. Nhưng Sapo OmniAI có một điểm yếu chiến lược: bị gắn với hệ Sapo
+
+Sapo OmniAI mạnh nhất khi shop đã nằm trong hệ sinh thái Sapo. Nhưng thị trường SME Việt Nam không đồng nhất: có shop dùng KiotViet, có shop dùng Sapo, có shop dùng Pancake, có shop dùng Excel, có shop dùng nhiều công cụ cùng lúc. Sapo cũng tự định vị là nền tảng quản lý bán hàng hợp kênh, có hơn 230.000 doanh nghiệp/chủ shop tin dùng, nghĩa là họ là một platform lớn, không phải một agent layer trung lập cho mọi hệ thống.
+
+Câu trả lời nên là:
+
+“Nếu khách hàng đã dùng Sapo rất sâu, Sapo OmniAI là một lựa chọn tự nhiên. Nhưng Agentify không cố thắng Sapo trong sân nhà của Sapo. Agentify thắng ở nhóm shop muốn giữ stack hiện tại, ví dụ đang dùng KiotViet, Zalo OA, Facebook, đơn vị vận chuyển, Google Sheet, CRM riêng hoặc nhiều công cụ cùng lúc. Bọn em là AI agent layer trung lập, không bắt shop đổi POS.”
+
+3. Nếu KiotViet tự build AI thì sao?
+
+Câu trả lời tốt:
+
+“Nếu KiotViet tự build AI thì đó là rủi ro thật. Nhưng đó không có nghĩa là Agentify chết. Vì KiotViet build AI chủ yếu để tăng giá trị cho hệ KiotViet, còn Agentify có thể đi theo hướng vertical AI agent, tập trung trước vào beauty/spa, tối ưu sâu cho tư vấn, booking, after-sales, xử lý kích ứng/khiếu nại và human-in-the-loop. Đây là lớp nghiệp vụ ngành dọc mà một POS platform lớn thường khó tối ưu sâu cho từng ngành ngay từ đầu.”
+
+Bạn có cơ sở để nói vậy vì KiotViet đã mở API cho bên thứ ba tích hợp với website, sàn TMĐT, CRM; API có thể đọc/ghi các đối tượng cốt lõi như hàng hóa, đặt hàng, hóa đơn, khách hàng. KiotViet còn có tài liệu API riêng cho ngành dịch vụ làm đẹp/salon. Điều này cho thấy hệ sinh thái KiotViet vẫn có cửa cho third-party app tích hợp, không nhất thiết mọi thứ phải do KiotViet tự làm.
+
+Câu chốt:
+
+“KiotViet tự build AI là một khả năng, nhưng Agentify không phụ thuộc vào việc KiotViet không làm. Bọn em tận dụng API của các POS để trở thành lớp agent chuyên ngành chạy phía trên nhiều hệ thống.”
+
+4. Agentify cạnh tranh Sapo bằng cách nào?
+Cách 1: Không đánh thị trường ngang, đánh thị trường dọc
+
+Đừng pitch là “AI cho mọi shop”. Hãy pitch:
+
+Agentify for Beauty & Spa Social Commerce
+
+Vì Sapo OmniAI phải phục vụ rất nhiều ngành: thời trang, F&B, tạp hóa, mỹ phẩm, salon, spa, nhà thuốc, mẹ & bé, nội thất… Trang Sapo POS cũng liệt kê rất nhiều lĩnh vực như thời trang, cafe, tạp hóa, điện thoại, mỹ phẩm, spa, nhà thuốc, mẹ & bé, nội thất.
+
+Agentify nên nói:
+
+“Sapo phải làm AI đủ rộng cho nhiều ngành. Agentify bắt đầu rất hẹp ở beauty/spa, nơi hội thoại tư vấn phức tạp hơn, cần hỏi tình trạng da, routine, sản phẩm đang dùng, lịch hẹn, chăm sóc sau dịch vụ và chuyển nhân viên khi có rủi ro.”
+
+Đây là chiến lược startup hợp lý: đánh hẹp nhưng sâu.
+
+Cách 2: Tập trung vào “agentic workflow”, không chỉ chat/chốt đơn
+
+Sapo Chat OmniAI hiện được mô tả là công cụ tư vấn, chốt đơn tự động cho Facebook và Shopee; tài liệu khác nói có chatbot kịch bản, AI bám đuổi khách không phản hồi và tạo đơn trên Chat OmniAI.
+
+Agentify phải khác bằng workflow dài hơn:
+
+Sapo OmniAI: tư vấn → chốt đơn → tạo đơn
+Agentify: hiểu nhu cầu → hỏi thêm thông tin → kiểm tra tồn kho → tư vấn theo ngữ cảnh → tạo đơn → đẩy vận chuyển → nhắc dùng sản phẩm → hỏi feedback → phát hiện kích ứng/khiếu nại → chuyển nhân viên → lưu insight khách hàng
+
+Câu pitch:
+
+“Điểm khác biệt của Agentify không phải là trả lời hay hơn, mà là agent có thể quản lý toàn bộ vòng đời khách hàng sau tin nhắn đầu tiên.”
+
+Cách 3: Cross-platform thay vì platform-native
+
+Sapo mạnh trong hệ Sapo. KiotViet mạnh trong hệ KiotViet. Agentify nên đứng ở giữa.
+
+Ví dụ câu trả lời:
+
+“Shop Việt thường không dùng một hệ thống duy nhất. Một shop có thể bán qua Zalo, Facebook, TikTok, dùng KiotViet để quản lý kho, dùng đơn vị vận chuyển riêng, dùng Google Sheet cho lịch hẹn. Agentify sinh ra để kết nối các điểm này thành một workflow hội thoại thống nhất.”
+
+KiotViet Chat đa kênh đã gom nhiều nền tảng như Facebook, Instagram, Shopee, Zalo OA về một giao diện, nhưng Agentify nên nhấn mạnh mình không chỉ gom chat mà còn là AI action layer chạy qua nhiều hệ thống.
+
+Cách 4: Human-in-the-loop cho case rủi ro
+
+Với beauty/spa, AI không nên tự tư vấn mọi thứ. Đây là cơ hội khác biệt.
+
+Agentify nên có rule:
+
+Tự xử lý FAQ, tư vấn cơ bản, tồn kho, đơn hàng, lịch hẹn.
+Chuyển người thật khi có: kích ứng, treatment/retinol/BHA/AHA, mẹ bầu, da bệnh lý, hoàn tiền, khách tức giận, đơn giá trị cao.
+Cho nhân viên duyệt câu trả lời nhạy cảm trước khi gửi.
+
+Câu này rất thuyết phục giám khảo vì cho thấy bạn hiểu rủi ro AI.
+
+5. Câu trả lời mẫu khi bị hỏi trực tiếp
+Câu hỏi 1: “Làm sao em chắc chắn thắng được Sapo OmniAI?”
+
+Bạn trả lời:
+
+“Em không nói là Agentify sẽ thắng Sapo ở mọi phân khúc. Nếu một shop đã dùng Sapo rất sâu và chỉ cần chốt đơn trong hệ Sapo, Sapo OmniAI là lựa chọn mạnh. Nhưng thị trường không chỉ có nhóm đó. Agentify chọn cạnh tranh ở phân khúc shop beauty/spa bán qua Zalo/Facebook, đang dùng nhiều công cụ khác nhau như KiotViet, Sapo, đơn vị vận chuyển, lịch hẹn. Điểm mạnh của Agentify là AI agent chuyên ngành, không chỉ trả lời hay tạo đơn, mà tự động hóa toàn bộ workflow: tư vấn theo tình trạng da, kiểm tra tồn kho, tạo đơn, đặt lịch, nhắc lịch, chăm sóc sau mua và chuyển nhân viên khi có rủi ro. Sapo là platform-native AI, còn Agentify là vertical AI agent layer.”
+
+Câu hỏi 2: “Nếu KiotViet cũng tự build thì em chết à?”
+
+Bạn trả lời:
+
+“Đây là rủi ro thật, nhưng không làm Agentify chết nếu bọn em đi đúng chiến lược. KiotViet nếu build AI sẽ ưu tiên làm AI cho hệ sinh thái KiotViet, phục vụ nhiều ngành rộng. Agentify không cạnh tranh POS với KiotViet, mà dùng KiotViet như một hệ thống backend để agent thao tác. KiotViet cũng có Public API cho bên thứ ba tích hợp dữ liệu hàng hóa, đơn hàng, khách hàng, hóa đơn. Vì vậy bọn em có thể trở thành lớp AI agent chuyên sâu phía trên KiotViet, đặc biệt trong ngành beauty/spa. Nếu KiotViet tự build AI, Agentify vẫn khác ở ba điểm: cross-platform, chuyên ngành sâu, và workflow human-in-the-loop cho các ca tư vấn/rủi ro.”
+
+Câu hỏi 3: “Sapo đã tự build rồi, giờ cạnh tranh kiểu gì?”
+
+Bạn trả lời:
+
+“Bọn em cạnh tranh bằng focus. Sapo phải làm sản phẩm ngang cho rất nhiều ngành và nhiều loại merchant. Agentify bắt đầu từ một ngành có pain point rất rõ: beauty/spa. Đây là ngành cần tư vấn nhiều, chăm sóc sau mua nhiều, có lịch hẹn, có feedback/khiếu nại và cần chuyển người thật khi có rủi ro. Bọn em không cần thắng toàn bộ thị trường ngay; bọn em cần thắng một use case hẹp nhưng đau: biến inbox beauty/spa thành đơn hàng, lịch hẹn và chăm sóc sau mua tự động.”
