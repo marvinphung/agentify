@@ -19,5 +19,7 @@
 
   `vite.config.ts` proxies `/api` and `/health` to `VITE_PROXY_API_TARGET`.
 
+  For Vercel deploys, keep `VITE_API_BASE_URL` empty/unset. The deployed app calls same-origin `/api` and `/health`, and `vercel.json` rewrites those requests to `http://131.153.239.187:8763`.
+
   Do not use `serve dist -l 5173` for local API smoke unless the app was built with `VITE_API_BASE_URL` pointing at a backend, because static serve does not apply Vite proxy or Vercel rewrites.
   

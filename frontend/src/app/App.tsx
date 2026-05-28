@@ -63,7 +63,8 @@ const CONNECT_DELAY_MS = {
 
 const randomConnectDelay = () => CONNECT_DELAY_MS.min + Math.floor(Math.random() * (CONNECT_DELAY_MS.max - CONNECT_DELAY_MS.min));
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const API_BASE_URL = configuredApiBaseUrl === 'https://api.agentify.io.vn' ? '' : configuredApiBaseUrl;
 const AUTH_TOKEN_KEY = 'agentify_owner_access_token';
 const sunscreenRecommendations: Recommendation[] = [
   { name: 'Kem chống nắng kiềm dầu SkinPure SPF50 50ml', price: 235000, fit: 'Phù hợp da dầu, cần finish ráo nhẹ', skin: 'Da dầu', image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80' },
@@ -926,10 +927,10 @@ function AuthScreen({
   onBack: () => void,
   toast: string | null
 }) {
-  const [name, setName] = useState('Lumi Beauty');
-  const [shopName, setShopName] = useState('Lumi Beauty');
-  const [email, setEmail] = useState('owner@lumibeauty.vn');
-  const [password, setPassword] = useState('12345678');
+  const [name, setName] = useState('');
+  const [shopName, setShopName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isRegister = mode === 'register';
@@ -982,12 +983,12 @@ function AuthScreen({
             <div className="space-y-4">
               {isRegister && (
                 <>
-                  <LabeledInput label="Tên người dùng" value={name} onChange={setName} />
-                  <LabeledInput label="Tên shop" value={shopName} onChange={setShopName} />
+                  <LabeledInput label="Tên người dùng" value={name} onChange={setName} placeholder="Nhập tên người dùng" />
+                  <LabeledInput label="Tên shop" value={shopName} onChange={setShopName} placeholder="Nhập tên shop" />
                 </>
               )}
-              <LabeledInput label="Email" value={email} onChange={setEmail} type="email" />
-              <LabeledInput label="Mật khẩu" value={password} onChange={setPassword} type="password" />
+              <LabeledInput label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com" />
+              <LabeledInput label="Mật khẩu" value={password} onChange={setPassword} type="password" placeholder="Tối thiểu 8 ký tự" />
               {error && <div className="rounded-xl border border-coral-200 bg-coral-50 px-4 py-3 text-sm text-coral-700">{error}</div>}
               <button
                 onClick={submit}
